@@ -98,3 +98,6 @@ pub struct IsClaimedResponse {
 pub struct PriceListResponse {
     pub prices: Vec<PriceInfo>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

@@ -11,13 +11,13 @@ use cw721::{
     OwnerOfResponse,
     
 };
-
+use cw2::{get_contract_version};
 use cw_storage_plus::Bound;
 use cw721_base::{
     msg::ExecuteMsg as Cw721ExecuteMsg, msg::InstantiateMsg as Cw721InstantiateMsg, Extension,
     msg::MintMsg, msg::BatchMintMsg, msg::QueryMsg as Cw721QueryMsg, 
 };
-use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MerkleRootResponse, IsClaimedResponse, PriceListResponse, PriceInfo};
+use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MerkleRootResponse, IsClaimedResponse, PriceListResponse, PriceInfo, MigrateMsg};
 use cw_utils::{Expiration, Scheduled};
 use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg, Cw20CoinVerified, Balance};
 use cw_utils::parse_reply_instantiate_data;
@@ -26,7 +26,7 @@ use std::convert::TryInto;
 
 
 // version info for migration info
-const CONTRACT_NAME: &str = "MarbleCollection";
+const CONTRACT_NAME: &str = "marble-collection";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
@@ -68,7 +68,7 @@ pub fn instantiate(
             })?,
             funds: vec![],
             admin: None,
-            label: String::from("cw721-base for Marketplace"),
+            label: String::from("cw721-base for MarbleCollection"),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
@@ -477,4 +477,16 @@ pub fn execute_update_price(
         .add_attribute("action", "change_price")
         .add_attribute("count", count.to_string())
         .add_submessages(vec![]))
+}
+
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, crate::ContractError> {
+    let version = get_contract_version(deps.storage)?;
+    if version.contract != CONTRACT_NAME {
+        return Err(crate::ContractError::CannotMigrate {
+            previous_contract: version.contract,
+        });
+    }
+    Ok(Response::default())
 }

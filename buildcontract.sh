@@ -2,6 +2,7 @@
 
 #Build Flag
 PARAM=$1
+SUBPARAM=$2
 ####################################    Constants    ##################################################
 
 #depends on mainnet or testnet
@@ -18,23 +19,32 @@ DENOM="ujunox"
 ##########################################################################################
 #not depends
 NODECHAIN=" $NODE --chain-id $CHAIN_ID"
-TXFLAG=" $NODECHAIN --gas-prices 0.01$DENOM --gas auto --gas-adjustment 1.3"
+TXFLAG=" $NODECHAIN --gas-prices 0.001$DENOM --gas auto --gas-adjustment 1.3"
 WALLET="--from new_marble"
 
 RELEASE="release/"
 
 CW721WASMFILE=$RELEASE"cw721_base.wasm"
-MARBLENFTWASMFILE=$RELEASE"marble_nft.wasm"
-MARKETPLACEWASMFILE=$RELEASE"marketplace.wasm"
+PRESALEAIRDROPWASMFILE=$RELEASE"marble_presaleairdrop.wasm"
+COLLECTIONWASMFILE=$RELEASE"marble_collection.wasm"
+MARKETPLACEWASMFILE=$RELEASE"marble_marketplace.wasm"
+
+FILE_CODE_CW721_BASE="code_cw721_base.txt"
+FILE_CODE_MARBLE_COLLECTION="code_marble_collection.txt"
+FILE_CODE_MARBLE_MARKETPLACE="code_marble_marketplace.txt"
+FILE_CODE_MARBLE_PRESALEAIRDROP="code_marble_presaleairdrop.txt"
 
 FILE_UPLOADHASH="uploadtx.txt"
-FILE_CONTRACT_ADDR="contractaddr.txt"
-FILE_CODE_ID="code.txt"
+FILE_PRESALE_CONTRACT_ADDR="contract_presale.txt"
+FILE_AIRDROP_CONTRACT_ADDR="contract_airdrop.txt"
+FILE_MARKETPLACE_CONTRACT_ADDR="contract_marketplace.txt"
 
 ADDR_ACHILLES="juno15fg4zvl8xgj3txslr56ztnyspf3jc7n9j44vhz"
 ADDR_MARBLE="juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn"
 
-TOKEN_MARBLE_TEST="juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje"
+TOKEN_MARBLE="juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje"
+
+
 ###################################################################################################
 ###################################################################################################
 ###################################################################################################
@@ -70,51 +80,107 @@ RustBuild() {
 
     echo "================================================="
     echo "Rust Optimize Build Start"
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-
+    
+    rm -rf release
     mkdir release
-    cp target/wasm32-unknown-unknown/$MARKETPLACEWASMFILE $MARKETPLACEWASMFILE
+    
+    cd contracts
+    
+    cd cw721-base
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd ..
+    cd collection
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd ..
+    cd presaleairdrop
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd ..
+    cd marketplace
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 }
 
 Upload() {
     echo "================================================="
-    echo "Upload $MARKETPLACEWASMFILE"
+    echo "Upload $SUBPARAM"
     
-    UPLOADTX=$(junod tx wasm store $MARKETPLACEWASMFILE $WALLET $TXFLAG --output json -y | jq -r '.txhash')
+    UPLOADTX=$(junod tx wasm store $RELEASE$SUBPARAM".wasm" $WALLET $TXFLAG --output json -y | jq -r '.txhash')
+    
     echo "Upload txHash:"$UPLOADTX
     
-    #save to FILE_UPLOADHASH
-    echo $UPLOADTX > $FILE_UPLOADHASH
-    echo "wrote last transaction hash to $FILE_UPLOADHASH"
-}
-
-#Read code from FILE_UPLOADHASH
-GetCode() {
     echo "================================================="
-    echo "Get code from transaction hash written on $FILE_UPLOADHASH"
-    
-    #read from FILE_UPLOADHASH
-    TXHASH=$(cat $FILE_UPLOADHASH)
-    echo "read last transaction hash from $FILE_UPLOADHASH"
-    echo $TXHASH
-    
-    QUERYTX="junod query tx $TXHASH $NODECHAIN --output json"
-	CODE_ID=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[-1].attributes[0].value')
-	echo "Contract Code_id:"$CODE_ID
+    echo "GetCode"
+	CODE_ID=""
+    while [[ $CODE_ID == "" ]]
+    do 
+        sleep 3
+        CODE_ID=$(junod query tx $UPLOADTX $NODECHAIN --output json | jq -r '.logs[0].events[-1].attributes[0].value')
+    done
+    echo "Contract Code_id:"$CODE_ID
 
     #save to FILE_CODE_ID
-    echo $CODE_ID > $FILE_CODE_ID
+    echo $CODE_ID > "code_"$SUBPARAM".txt"
 }
 
-#Instantiate Contract
-Instantiate() {
+InstantiatePresale() { 
     echo "================================================="
-    echo "Instantiate Contract"
+    echo "Instantiate Presale Contract"
+    CODE_MARBLE_PRESALEAIRDROP=$(cat $FILE_CODE_MARBLE_PRESALEAIRDROP)
+    CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
+
+    echo "PresaleAirdrop Code ID: "$CODE_MARBLE_PRESALEAIRDROP
+    echo "CW721-base Code ID: "$CODE_CW721_BASE
     
-    #read from FILE_CODE_ID
-    CODE_ID=$(cat $FILE_CODE_ID)
-    #mainnet code id: "cw721_base_code_id":388, "collection_code_id":389
-    #testnet code id: "cw721_base_code_id":302, "collection_code_id":303
+    TXHASH=$(junod tx wasm instantiate $CODE_MARBLE_PRESALEAIRDROP '{"owner":"'$ADDR_MARBLE'", "pay_native": true, "airdrop": false, "native_denom":"'$DENOM'", "max_tokens":100000, "name":"MarbleNFT", "symbol":"MNFT", "token_code_id": '$CODE_CW721_BASE', "cw20_address":"'$TOKEN_MARBLE'", "royalty":0}' --admin $ADDR_MARBLE --label "Marblenauts" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    echo $CONTRACT_ADDR > $FILE_PRESALE_CONTRACT_ADDR
+}
+
+InstantiateAirdrop() { 
+    echo "================================================="
+    echo "Instantiate Airdrop Contract"
+    CODE_MARBLE_PRESALEAIRDROP=$(cat $FILE_CODE_MARBLE_PRESALEAIRDROP)
+    CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
+
+    echo "PresaleAirdrop Code ID: "$CODE_MARBLE_PRESALEAIRDROP
+    echo "CW721-base Code ID: "$CODE_CW721_BASE
+    
+    TXHASH=$(junod tx wasm instantiate $CODE_MARBLE_PRESALEAIRDROP '{"owner":"'$ADDR_MARBLE'", "pay_native": true, "airdrop": true, "native_denom":"'$DENOM'", "max_tokens":100000, "name":"MarbleNFT", "symbol":"MNFT", "token_code_id": '$CODE_CW721_BASE', "cw20_address":"'$TOKEN_MARBLE'", "royalty":0}' --admin $ADDR_MARBLE --label "MarbleAirdrop" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    echo $CONTRACT_ADDR > $FILE_AIRDROP_CONTRACT_ADDR
+}
+
+InstantiateMarketplace() { 
+    echo "================================================="
+    echo "Instantiate Marketplace Contract"
+    CODE_MARBLE_COLLECTION=$(cat $FILE_CODE_MARBLE_COLLECTION)
+    CODE_MARBLE_MARKETPLACE=$(cat $FILE_CODE_MARBLE_MARKETPLACE)
+    CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
+
+    echo "Marketplace Code ID: "$CODE_MARBLE_MARKETPLACE
+    echo "Collection Code ID: "$CODE_MARBLE_COLLECTION
+    echo "CW721-base Code ID: "$CODE_CW721_BASE
+    
     # Instantiate param in cosmwasm.tools
     # {
     #   "add_collection": {
@@ -128,15 +194,17 @@ Instantiate() {
     #     "uri": "ddd"
     #   }
     # }
-    TXHASH=$(junod tx wasm instantiate $CODE_ID '{"cw721_base_code_id":302, "collection_code_id":303}' --label "Marble Marketplace" --admin $ADDR_MARBLE $WALLET $TXFLAG -y --output json | jq -r '.txhash')
-    echo $TXHASH
-    echo $TXHASH > $FILE_UPLOADHASH
 
-    sleep 15
-    CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    TXHASH=$(junod tx wasm instantiate $CODE_MARBLE_MARKETPLACE '{"cw721_base_code_id":'$CODE_CW721_BASE', "collection_code_id":'$CODE_MARBLE_COLLECTION'}' --label "MarbleMarketplace" --admin $ADDR_MARBLE $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
     echo $CONTRACT_ADDR
-    echo $CONTRACT_ADDR > $FILE_CONTRACT_ADDR
-	echo "Contract Code_id:"$CODE_ID
+    echo $CONTRACT_ADDR > $FILE_MARKETPLACE_CONTRACT_ADDR
 }
 
 ###################################################################################################
@@ -150,9 +218,8 @@ Claim() {
     junod tx wasm execute $CONTRACT_MARBLENFT '{"claim":{"proof":[  "68c4141905c082cf699afa9ed1b8e4d2e3a278c1144cc784f1992493fc002edd",  "c3d63ecbcacef6c174fe18fead19c9ba640c27a15c7a5ef96f971ec816e26024"]}}' $WALLET $TXFLAG -y
 
     junod tx wasm execute $CONTRACT_MARBLENFT '{"claim":{"proof":[  "3506d5b5320f1f9bbecfd94147fa3a79e5eb093dbfc532a2826ecd03482b6020",  "c3d63ecbcacef6c174fe18fead19c9ba640c27a15c7a5ef96f971ec816e26024"]}}' --from marble2 $TXFLAG -y
-
-    
 }
+
 Mint() {
     CONTRACT_MARBLENFT=$(cat $FILE_CONTRACT_ADDR)
     junod tx wasm execute $CONTRACT_MARBLENFT '{"mint":{"uri":"https://marbledao.mypinata.cloud/ipfs/QmQRi7Jg2wxKoTEj7813wksEf6Kxsa6YHTv4FVahBHii3A", "price":"1"}}' $WALLET $TXFLAG -y
@@ -198,38 +265,13 @@ PrintWalletBalance() {
 #################################### End of Function ###################################################
 if [[ $PARAM == "" ]]; then
     RustBuild
-    UploadAndGetCodeCW721Base
-sleep 5
-    Upload
-sleep 8
-    GetCode
-sleep 10
-    Instantiate
-sleep 10
-    GetContractAddress
-sleep 5
-    BatchMint
-# sleep 5
-#     SendFot
-# sleep 5
-#     Withdraw
-sleep 5
-    PrintConfig
-sleep 5
-    SetMerkleString
-sleep 5
-    Claim
-# sleep 5
-#     PrintWalletBalance
+    Upload cw721_base
+    Upload marble_collection
+    Upload marble_marketplace
+    Upload marble_presaleairdrop
+    InstantiatePresale
+    InstantiateAirdrop
+    InstantiateMarketplace
 else
-    $PARAM
+    $PARAM $SUBPARAM
 fi
-
-# OptimizeBuild
-# Upload
-# GetCode
-# Instantiate
-# GetContractAddress
-# CreateEscrow
-# TopUp
-

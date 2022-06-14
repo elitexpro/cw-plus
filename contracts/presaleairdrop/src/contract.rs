@@ -28,7 +28,7 @@ use std::convert::TryInto;
 
 
 // version info for migration info
-const CONTRACT_NAME: &str = "Marblenauts";
+const CONTRACT_NAME: &str = "marble-presaleairdrop";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const MERKLE_STAGE:u8 = 1;
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
@@ -58,7 +58,6 @@ pub fn instantiate(
         sold_cnt: 0,
         name: msg.name.clone(),
         symbol: msg.symbol.clone(),
-        extension: msg.extension.clone(),
         unused_token_id: 0,
         royalty: msg.royalty
     };
@@ -131,7 +130,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         sold_cnt: config.sold_cnt,
         name: config.name,
         symbol: config.symbol,
-        extension: config.extension,
         unused_token_id: config.unused_token_id,
         royalty: config.royalty
     })
@@ -187,11 +185,11 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         
-        ExecuteMsg::Mint{ uri, price } => {
-            execute_mint(deps, env, info, uri, price)
+        ExecuteMsg::Mint{ uri, price, extension } => {
+            execute_mint(deps, env, info, uri, price, extension)
         },
-        ExecuteMsg::BatchMint{ uri, price} => {
-            execute_batch_mint(deps, env, info, uri, price)
+        ExecuteMsg::BatchMint{ uri, price, extension} => {
+            execute_batch_mint(deps, env, info, uri, price, extension)
         },
         ExecuteMsg::Receive(msg) => execute_cw20_buy_move(deps, env, info, msg),
         
@@ -234,7 +232,8 @@ pub fn execute_mint(
     env: Env,
     info: MessageInfo,
     uri: String,
-    price: Uint128
+    price: Uint128,
+    extension: Extension
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -252,7 +251,7 @@ pub fn execute_mint(
         token_id: config.unused_token_id.to_string(),
         owner: env.contract.address.into(),
         token_uri: uri.clone().into(),
-        extension: config.extension.clone(),
+        extension: extension.clone(),
     });
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -273,7 +272,8 @@ pub fn execute_batch_mint(
     env: Env,
     info: MessageInfo,
     uri: Vec<String>,
-    price: Vec<Uint128>
+    price: Vec<Uint128>,
+    extension: Vec<Extension>
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -301,10 +301,10 @@ pub fn execute_batch_mint(
     }
     
     let mint_msg = Cw721ExecuteMsg::BatchMint(BatchMintMsg::<Extension> {
-        token_id: token_id,
+        token_id,
         owner: env.contract.address.into(),
         token_uri: uri,
-        extension: config.extension.clone(),
+        extension: extension.clone(),
     });
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {

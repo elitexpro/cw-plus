@@ -19,7 +19,6 @@ pub struct Config {
     pub sold_cnt: u32,
     pub name: String,
     pub symbol: String,
-    pub extension: Extension,
     pub unused_token_id: u32,
     pub royalty: u32
 }

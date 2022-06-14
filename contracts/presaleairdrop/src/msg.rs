@@ -23,8 +23,8 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Mint {uri: String, price:Uint128},
-    BatchMint {uri: Vec<String>, price: Vec<Uint128>},
+    Mint {uri: String, price:Uint128, extension: Extension},
+    BatchMint {uri: Vec<String>, price: Vec<Uint128>, extension:Vec<Extension>},
     BuyNative {},
     MoveNative { token_id:u32, recipient: Addr },
     Receive(Cw20ReceiveMsg),
@@ -91,7 +91,6 @@ pub struct ConfigResponse {
     pub sold_cnt: u32,
     pub name: String,
     pub symbol: String,
-    pub extension: Extension,
     pub unused_token_id: u32,
     pub royalty: u32
 }

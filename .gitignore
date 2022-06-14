@@ -1,6 +1,6 @@
 # macOS
 .DS_Store
-
+Cargo.lock
 # Text file backups
 **/*.rs.bk
 
@@ -18,7 +18,7 @@ target/
 .cargo-ok
 
 # Build artifacts
-*.wasm
+
 hash.txt
 contracts.txt
 artifacts/
