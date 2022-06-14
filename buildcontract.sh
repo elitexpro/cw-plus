@@ -216,7 +216,7 @@ InstantiateMarketplace() {
 
 SetMerkleString() {
     
-    MERKLEROOT=$(merkle-airdrop-cli generateRoot --file $AIRDROP_LIST_1)
+    MERKLEROOT=$(merkle-airdrop-cli generateRoot --file $AIRDROP_LIST_2)
     echo $MERKLEROOT
     echo $MERKLEROOT > $FILE_MERKLEROOT
     
