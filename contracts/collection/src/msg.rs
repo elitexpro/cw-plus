@@ -35,6 +35,9 @@ pub enum ExecuteMsg {
     UpdatePrice {
         token_id: Vec<u32>,
         price: Vec<Uint128>
+    },
+    UpdateUnusedTokenId {
+        token_id: u32
     }
 }
 

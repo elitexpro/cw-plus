@@ -68,7 +68,7 @@ pub fn instantiate(
             })?,
             funds: vec![],
             admin: None,
-            label: String::from("cw721-base for MarbleCollection"),
+            label: msg.name.clone(),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
@@ -170,7 +170,10 @@ pub fn execute(
         ExecuteMsg::UpdatePrice {
             token_id,
             price
-        } => execute_update_price(deps, info, token_id, price)
+        } => execute_update_price(deps, info, token_id, price),
+        ExecuteMsg::UpdateUnusedTokenId {
+            token_id
+        } => execute_update_unused_token_id(deps, info, token_id)
     }
 }
 
@@ -280,7 +283,6 @@ pub fn send_nft (
 
     action = "buy_cw20";
 
-    let mut submsgs: Vec<SubMsg> = vec![];
 
     let mut msgs: Vec<CosmosMsg> = vec![];
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -311,9 +313,8 @@ pub fn send_nft (
         }));
     }
 
-    let mut res = Response::new()
+    let res = Response::new()
         .add_messages(msgs)
-        .add_submessages(submsgs)
         .add_attribute("action", action)
         .add_attribute("address", recipient.clone());
 
@@ -463,7 +464,6 @@ pub fn execute_update_price(
     if info.sender != config.owner {
         return Err(crate::ContractError::Unauthorized {});
     }
-
     
     if token_id.len() != price.len() {
         return Err(crate::ContractError::WrongLength {});
@@ -477,6 +477,25 @@ pub fn execute_update_price(
         .add_attribute("action", "change_price")
         .add_attribute("count", count.to_string())
         .add_submessages(vec![]))
+}
+
+
+pub fn execute_update_unused_token_id(
+    deps: DepsMut,
+    info: MessageInfo,
+    token_id: u32
+) -> Result<Response, crate::ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(crate::ContractError::Unauthorized {});
+    }
+    config.unused_token_id = token_id;
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "change_unused_token_id")
+        .add_attribute("token_id", token_id.to_string())
+    )
 }
 
 

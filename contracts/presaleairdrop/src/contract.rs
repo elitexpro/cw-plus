@@ -74,7 +74,7 @@ pub fn instantiate(
             })?,
             funds: vec![],
             admin: None,
-            label: String::from("cw721-base for Marblenauts"),
+            label: msg.name.clone(),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
