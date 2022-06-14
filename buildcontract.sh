@@ -44,7 +44,9 @@ ADDR_MARBLE="juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn"
 
 TOKEN_MARBLE="juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje"
 
-
+AIRDROP_LIST_1="airdroplist/earlylp.json"
+AIRDROP_LIST_2="airdroplist/final-daodao.json"
+FILE_MERKLEROOT="merkleroot.txt"
 ###################################################################################################
 ###################################################################################################
 ###################################################################################################
@@ -205,6 +207,21 @@ InstantiateMarketplace() {
     done
     echo $CONTRACT_ADDR
     echo $CONTRACT_ADDR > $FILE_MARKETPLACE_CONTRACT_ADDR
+}
+
+###################################################################################################
+###################################################################################################
+###################################################################################################
+###################################################################################################
+
+SetMerkleString() {
+    
+    MERKLEROOT=$(merkle-airdrop-cli generateRoot --file $AIRDROP_LIST_1)
+    echo $MERKLEROOT
+    echo $MERKLEROOT > $FILE_MERKLEROOT
+    
+    CONTRACT_ADDR=$(cat $FILE_AIRDROP_CONTRACT_ADDR)
+    junod tx wasm execute $CONTRACT_ADDR '{"register_merkle_root":{"merkle_root":"'$MERKLEROOT'"}}' $WALLET $TXFLAG -y
 }
 
 ###################################################################################################
