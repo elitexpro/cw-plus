@@ -4,7 +4,7 @@ use std::collections::btree_set::Difference;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
-    WasmMsg, WasmQuery, QueryRequest, CosmosMsg, Order, Addr, Decimal, Storage, Api, SubMsg, ReplyOn, Reply
+    WasmMsg, WasmQuery, QueryRequest, CosmosMsg, Order, Addr, Decimal, Storage, Api, SubMsg, ReplyOn, Reply, QuerierWrapper
 };
 use cw_utils::parse_reply_instantiate_data;
 use cw2::{get_contract_version, set_contract_version};
@@ -162,12 +162,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     cfg.max_collection_id += 1;
     CONFIG.save(deps.storage, &cfg)?;
 
-    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &(collection_address.clone(), cw721_address.clone()))?;
+    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &collection_address.clone())?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate_collection")
         .add_attribute("collection_address", collection_address)
-        .add_attribute("cw721_address", cw721_address)
     )
 }
 
@@ -214,7 +213,7 @@ pub fn execute_remove_all_collection(
 
     let collections:StdResult<Vec<_>> = COLLECTIONS
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| map_collection(item))
+        .map(|item| map_collection(deps.querier, item))
         .collect();
 
     if collections.is_err() {
@@ -253,16 +252,15 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 pub fn query_collection(deps: Deps, id: u32) -> StdResult<CollectionInfo> {
-    let exists = COLLECTIONS.may_load(deps.storage, id)?;
-    let cfg = CONFIG.load(deps.storage)?;
-    let (mut collection_addr, mut cw721_addr) = (cfg.owner.clone(), cfg.owner.clone());
-    if exists.is_some() {
-        (collection_addr, cw721_addr) = exists.unwrap();
-    } 
+    
+    let collection_address = COLLECTIONS.load(deps.storage, id)?;
+    
+    let (cw721_address, uri) = get_collection_info(deps.querier, collection_address.clone());
     Ok(CollectionInfo {
         id,
-        collection_addr,
-        cw721_addr
+        collection_address,
+        cw721_address,
+        uri
     })
 }
 
@@ -270,7 +268,7 @@ pub fn query_list_collections(deps: Deps)
 -> StdResult<CollectionListResponse> {
     let collections:StdResult<Vec<_>> = COLLECTIONS
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| map_collection(item))
+        .map(|item| map_collection(deps.querier, item))
         .collect();
 
     Ok(CollectionListResponse {
@@ -278,14 +276,33 @@ pub fn query_list_collections(deps: Deps)
     })
 }
 
+fn get_collection_info(
+    querier: QuerierWrapper,
+    collection_address: Addr
+) -> (Addr, String) {
+    let collection_response: CollectionConfigResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: collection_address.clone().into(),
+        msg: to_binary(&CollectionQueryMsg::GetConfig {}).unwrap(),
+    })).unwrap();
+    let uri = collection_response.uri;
+    let cw721_address = collection_response.cw721_address.unwrap();
+
+    (cw721_address, uri)
+}
+
 fn map_collection(
-    item: StdResult<(u32, (Addr, Addr))>,
+    querier: QuerierWrapper,
+    item: StdResult<(u32, Addr)>,
 ) -> StdResult<CollectionInfo> {
-    item.map(|(id, (collection_addr, cw721_addr))| {
+    item.map(|(id, collection_address)| {
+        
+        let (cw721_address, uri) = get_collection_info(querier, collection_address.clone());
+
         CollectionInfo {
             id,
-            collection_addr,
-            cw721_addr
+            collection_address,
+            cw721_address,
+            uri
         }
     })
 }

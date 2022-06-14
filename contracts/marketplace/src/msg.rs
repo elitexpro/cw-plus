@@ -63,8 +63,9 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CollectionInfo {
     pub id: u32,
-    pub collection_addr: Addr,
-    pub cw721_addr: Addr
+    pub collection_address: Addr,
+    pub cw721_address: Addr,
+    pub uri: String
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
