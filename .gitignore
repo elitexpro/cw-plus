@@ -25,4 +25,4 @@ artifacts/
 
 # code coverage
 tarpaulin-report.*
-contracts/marketplace/
+
