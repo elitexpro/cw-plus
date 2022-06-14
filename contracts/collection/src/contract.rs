@@ -422,7 +422,6 @@ pub fn execute_change_owner(
         .add_submessages(vec![]))
 }
 
-
 pub fn execute_change_cw721_owner(
     deps: DepsMut,
     info: MessageInfo,
@@ -432,10 +431,6 @@ pub fn execute_change_cw721_owner(
     if info.sender != config.owner {
         return Err(crate::ContractError::Unauthorized {});
     }
-
-    config.owner = owner.clone();
-    CONFIG.save(deps.storage, &config)?;
-
 
     let change_msg = Cw721ExecuteMsg::<Extension>::ChangeOwner {
         owner: owner.clone().into()

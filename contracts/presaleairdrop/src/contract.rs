@@ -726,10 +726,6 @@ pub fn execute_change_cw721_owner(
         return Err(ContractError::Unauthorized {});
     }
 
-    config.owner = owner.clone();
-    CONFIG.save(deps.storage, &config)?;
-
-
     let change_msg = Cw721ExecuteMsg::<Extension>::ChangeOwner {
         owner: owner.clone().into()
     };
