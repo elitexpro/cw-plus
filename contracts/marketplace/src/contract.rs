@@ -51,17 +51,17 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateConfig { new_owner } => execute_update_config(deps, info, new_owner),
         ExecuteMsg::UpdateConstants { collection_code_id, cw721_base_code_id } => execute_update_constants(deps, info, collection_code_id, cw721_base_code_id),
-        // ExecuteMsg::AddCollection {collection_addr, cw721_addr} => execute_add_collection(deps, info, collection_addr, cw721_addr),
         ExecuteMsg::RemoveCollection {id} => execute_remove_collection(deps, info, id),
         ExecuteMsg::RemoveAllCollection {  } => execute_remove_all_collection(deps, info),
-        ExecuteMsg::AddCollection(msg) => execute_add_collection(deps, info, msg)
+        ExecuteMsg::AddCollection(msg) => execute_add_collection(deps, info, msg),
+        ExecuteMsg::EditCollection(msg) => execute_edit_collection(deps, info, msg)
     }
 }
 
@@ -123,6 +123,8 @@ pub fn execute_add_collection(
 
     let cfg = CONFIG.load(deps.storage)?;
     
+    COLLECTIONS.save(deps.storage, cfg.max_collection_id + 1, &(msg.uri.clone(), info.sender.clone(), info.sender.clone()))?;
+
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: cfg.collection_code_id,
@@ -162,34 +164,17 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     cfg.max_collection_id += 1;
     CONFIG.save(deps.storage, &cfg)?;
 
-    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &collection_address.clone())?;
+    let (uri, _collection_address, _cw721_address) = COLLECTIONS.load(deps.storage, cfg.max_collection_id)?;
+
+    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &(uri, collection_address.clone(), cw721_address.clone()))?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate_collection")
         .add_attribute("collection_address", collection_address)
+        .add_attribute("cw721_address", cw721_address)
+        .add_attribute("id", cfg.max_collection_id.to_string())
     )
 }
-
-// pub fn execute_add_collection(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     collection_addr: Addr,
-//     cw721_addr: Addr
-// ) -> Result<Response, ContractError> {
-
-//     check_owner(&deps, &info)?;
-
-//     let mut cfg = CONFIG.load(deps.storage)?;
-//     cfg.max_collection_id += 1;
-//     CONFIG.save(deps.storage, &cfg);
-
-//     COLLECTIONS.save(deps.storage, cfg.max_collection_id, &(collection_addr.clone(), cw721_addr.clone()))?;
-//     Ok(Response::new()
-//         .add_attribute("action", "add_collection")
-//         .add_attribute("collection_addr", collection_addr)
-//         .add_attribute("cw721_addr", cw721_addr)
-//     )
-// }
 
 pub fn execute_remove_collection(
     deps: DepsMut,
@@ -200,7 +185,7 @@ pub fn execute_remove_collection(
     COLLECTIONS.remove(deps.storage, id);
     Ok(Response::new()
         .add_attribute("action", "remove_collection")
-       
+        .add_attribute("id", id.to_string())
     )
 }
 
@@ -213,7 +198,7 @@ pub fn execute_remove_all_collection(
 
     let collections:StdResult<Vec<_>> = COLLECTIONS
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| map_collection(deps.querier, item))
+        .map(|item| map_collection(item))
         .collect();
 
     if collections.is_err() {
@@ -227,6 +212,20 @@ pub fn execute_remove_all_collection(
     Ok(Response::new().add_attribute("action", "remove_all_collection"))
 }
 
+
+
+pub fn execute_edit_collection(
+    deps: DepsMut,
+    info: MessageInfo,
+    msg: CollectionInfo
+) -> Result<Response, ContractError> {
+
+    check_owner(&deps, &info)?;
+
+    COLLECTIONS.save(deps.storage, msg.id, &(msg.uri, msg.collection_address, msg.cw721_address))?;
+    
+    Ok(Response::new().add_attribute("action", "edit_collection").add_attribute("id", msg.id.to_string()))
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -253,9 +252,8 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 pub fn query_collection(deps: Deps, id: u32) -> StdResult<CollectionInfo> {
     
-    let collection_address = COLLECTIONS.load(deps.storage, id)?;
+    let (uri, collection_address, cw721_address) = COLLECTIONS.load(deps.storage, id)?;
     
-    let (cw721_address, uri) = get_collection_info(deps.querier, collection_address.clone());
     Ok(CollectionInfo {
         id,
         collection_address,
@@ -268,7 +266,7 @@ pub fn query_list_collections(deps: Deps)
 -> StdResult<CollectionListResponse> {
     let collections:StdResult<Vec<_>> = COLLECTIONS
         .range(deps.storage, None, None, Order::Ascending)
-        .map(|item| map_collection(deps.querier, item))
+        .map(|item| map_collection(item))
         .collect();
 
     Ok(CollectionListResponse {
@@ -276,28 +274,11 @@ pub fn query_list_collections(deps: Deps)
     })
 }
 
-fn get_collection_info(
-    querier: QuerierWrapper,
-    collection_address: Addr
-) -> (Addr, String) {
-    let collection_response: CollectionConfigResponse = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: collection_address.clone().into(),
-        msg: to_binary(&CollectionQueryMsg::GetConfig {}).unwrap(),
-    })).unwrap();
-    let uri = collection_response.uri;
-    let cw721_address = collection_response.cw721_address.unwrap();
-
-    (cw721_address, uri)
-}
-
 fn map_collection(
-    querier: QuerierWrapper,
-    item: StdResult<(u32, Addr)>,
+    item: StdResult<(u32, (String, Addr, Addr))>,
 ) -> StdResult<CollectionInfo> {
-    item.map(|(id, collection_address)| {
+    item.map(|(id, (uri, collection_address, cw721_address))| {
         
-        let (cw721_address, uri) = get_collection_info(querier, collection_address.clone());
-
         CollectionInfo {
             id,
             collection_address,

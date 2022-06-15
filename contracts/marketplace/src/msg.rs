@@ -31,7 +31,8 @@ pub enum ExecuteMsg {
     RemoveAllCollection {
 
     },
-    AddCollection(CollectionInstantiateMsg)
+    AddCollection(CollectionInstantiateMsg),
+    EditCollection(CollectionInfo)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -190,7 +190,7 @@ InstantiateMarketplace() {
     #     "max_tokens": 10000,
     #     "name": "Collection1",
     #     "symbol": "MNFT",
-    #     "token_code_id": 302,
+    #     "token_code_id": 360,
     #     "cw20_address": "juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje",
     #     "royalty": 0,
     #     "uri": "ddd"

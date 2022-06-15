@@ -19,4 +19,4 @@ pub const CONFIG_KEY: &str = "config";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 
 pub const COLLECTIONS_KEY: &str = "collections";
-pub const COLLECTIONS: Map<u32, Addr> = Map::new(COLLECTIONS_KEY);
+pub const COLLECTIONS: Map<u32, (String, Addr, Addr)> = Map::new(COLLECTIONS_KEY);
