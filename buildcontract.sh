@@ -19,7 +19,7 @@ DENOM="ujunox"
 ##########################################################################################
 #not depends
 NODECHAIN=" $NODE --chain-id $CHAIN_ID"
-TXFLAG=" $NODECHAIN --gas-prices 0.001$DENOM --gas auto --gas-adjustment 1.3"
+TXFLAG=" $NODECHAIN --gas-prices 0.01$DENOM --gas auto --gas-adjustment 1.3"
 WALLET="--from new_marble"
 
 RELEASE="release/"

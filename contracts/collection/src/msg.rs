@@ -21,7 +21,12 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Mint {uri: String, price:Uint128, extension: Extension},
-    BatchMint {uri: Vec<String>, price: Vec<Uint128>, extension:Vec<Extension>},
+    BatchMint {
+        uri: Vec<String>, 
+        price: Vec<Uint128>, 
+        extension:Vec<Extension>,
+        to_owner: Option<bool>
+    },
     Receive(Cw20ReceiveMsg),
     ChangeContract {
         cw721_address: Addr

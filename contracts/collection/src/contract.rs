@@ -45,7 +45,7 @@ pub fn instantiate(
     }
 
     let config = Config {
-        owner: info.sender,
+        owner: msg.owner.clone(),
         cw20_address: msg.cw20_address,
         cw721_address: None,
         max_tokens: msg.max_tokens,
@@ -152,12 +152,10 @@ pub fn execute(
         ExecuteMsg::Mint{ uri, price, extension } => {
             execute_mint(deps, env, info, uri, price, extension)
         },
-        ExecuteMsg::BatchMint{ uri, price, extension} => {
-            execute_batch_mint(deps, env, info, uri, price, extension)
+        ExecuteMsg::BatchMint{ uri, price, extension, to_owner} => {
+            execute_batch_mint(deps, env, info, uri, price, extension, to_owner)
         },
-
         ExecuteMsg::Receive(msg) => execute_cw20_buy_move(deps, env, info, msg),
-        
         ExecuteMsg::ChangeContract {    //Change the holding CW721 contract address
             cw721_address
         } => execute_change_contract(deps, info, cw721_address),
@@ -177,6 +175,7 @@ pub fn execute(
     }
 }
 
+
 pub fn execute_mint(
     deps: DepsMut,
     env: Env,
@@ -186,9 +185,9 @@ pub fn execute_mint(
     extension: Extension
 ) -> Result<Response, crate::ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    // if info.sender != config.owner {
-    //     return Err(crate::ContractError::Unauthorized {});
-    // }
+    if info.sender != config.owner {
+        return Err(crate::ContractError::Unauthorized {});
+    }
     if config.cw721_address == None {
         return Err(crate::ContractError::Uninitialized {});
     }
@@ -223,12 +222,13 @@ pub fn execute_batch_mint(
     info: MessageInfo,
     uri: Vec<String>,
     price: Vec<Uint128>,
-    extension: Vec<Extension>
+    extension: Vec<Extension>,
+    to_owner: Option<bool>
 ) -> Result<Response, crate::ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    // if info.sender != config.owner {
-    //     return Err(crate::ContractError::Unauthorized {});
-    // }
+    if info.sender != config.owner {
+        return Err(crate::ContractError::Unauthorized {});
+    }
 
     if uri.len() != price.len() {
         return Err(crate::ContractError::CountNotMatch {});
@@ -249,10 +249,20 @@ pub fn execute_batch_mint(
         PRICE.save(deps.storage, config.unused_token_id, &price[i])?;
         config.unused_token_id += 1;
     }
+
+    let mut owner_addr = env.contract.address.clone();
+    match to_owner {
+        Some(value) => {
+            if value {
+                owner_addr = config.owner.clone();
+            }
+        },
+        None => {}
+    }
     
     let mint_msg = Cw721ExecuteMsg::BatchMint(BatchMintMsg::<Extension> {
-        token_id: token_id,
-        owner: env.contract.address.into(),
+        token_id,
+        owner: owner_addr.into(),
         token_uri: uri,
         extension: extension.clone(),
     });
