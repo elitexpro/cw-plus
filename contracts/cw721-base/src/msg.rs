@@ -54,8 +54,8 @@ pub enum ExecuteMsg<T> {
     /// Mint a new NFT, can only be called by the contract minter
     Mint(MintMsg<T>),
     BatchMint(BatchMintMsg<T>),
-    ChangeOwner {
-        owner: Addr
+    ChangeMinter {
+        minter: Addr
     },
 
     /// Burn an NFT the sender has access to

@@ -48,8 +48,8 @@ where
         msg: ExecuteMsg<T>,
     ) -> Result<Response<C>, ContractError> {
         match msg {
-            ExecuteMsg::ChangeOwner{owner} => {
-                self.change_owner(deps, info, owner)
+            ExecuteMsg::ChangeMinter{minter} => {
+                self.change_owner(deps, info, minter)
             },
             ExecuteMsg::Mint(msg) => self.mint(deps, env, info, msg),
             ExecuteMsg::BatchMint(msg) => self.batch_mint(deps, env, info, msg),
@@ -90,18 +90,18 @@ where
         &self,
         deps: DepsMut,
         info: MessageInfo,
-        owner: Addr
+        minter: Addr
     ) -> Result<Response<C>, ContractError> {
         let mut minter = self.minter.load(deps.storage)?;
         
         if info.sender != minter {
             return Err(ContractError::Unauthorized {});
         }
-        minter = owner.clone();
+        minter = minter.clone();
         self.minter.save(deps.storage, &minter)?;
         Ok(Response::new()
             .add_attribute("action", "change_owner")
-            .add_attribute("owner", owner))
+            .add_attribute("owner", minter))
 
     }
 

@@ -217,9 +217,9 @@ pub fn execute(
         ExecuteMsg::ChangeOwner {       //Change the owner of marblenft contract
             owner
         } => execute_change_owner(deps, info, owner),
-        ExecuteMsg::ChangeCw721Owner {       //Change the owner of Cw721 contract
+        ExecuteMsg::ChangeCw721Minter {       //Change the owner of Cw721 contract
             owner
-        } => execute_change_cw721_owner(deps, info, owner),
+        } => execute_change_cw721_minter(deps, info, owner),
         ExecuteMsg::UpdatePrice {
             token_id,
             price
@@ -716,7 +716,7 @@ pub fn execute_change_owner(
 }
 
 
-pub fn execute_change_cw721_owner(
+pub fn execute_change_cw721_minter(
     deps: DepsMut,
     info: MessageInfo,
     owner: Addr
@@ -726,8 +726,8 @@ pub fn execute_change_cw721_owner(
         return Err(ContractError::Unauthorized {});
     }
 
-    let change_msg = Cw721ExecuteMsg::<Extension>::ChangeOwner {
-        owner: owner.clone().into()
+    let change_msg = Cw721ExecuteMsg::<Extension>::ChangeMinter {
+        minter: owner.clone().into()
     };
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
