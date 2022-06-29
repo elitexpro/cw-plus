@@ -46,8 +46,8 @@ pub enum ExecuteMsg {
     ChangeOwner {
         owner: Addr
     },
-    ChangeCw721Owner {
-        owner: Addr
+    ChangeCw721Minter {
+        minter: Addr
     },
     UpdatePrice {
         token_id: Vec<u32>,

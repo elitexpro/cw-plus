@@ -55,7 +55,7 @@ pub enum ExecuteMsg<T> {
     Mint(MintMsg<T>),
     BatchMint(BatchMintMsg<T>),
     ChangeMinter {
-        minter: Addr
+        new_minter: Addr
     },
 
     /// Burn an NFT the sender has access to

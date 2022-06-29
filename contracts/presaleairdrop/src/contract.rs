@@ -218,8 +218,8 @@ pub fn execute(
             owner
         } => execute_change_owner(deps, info, owner),
         ExecuteMsg::ChangeCw721Minter {       //Change the owner of Cw721 contract
-            owner
-        } => execute_change_cw721_minter(deps, info, owner),
+            minter
+        } => execute_change_cw721_minter(deps, info, minter),
         ExecuteMsg::UpdatePrice {
             token_id,
             price
@@ -719,7 +719,7 @@ pub fn execute_change_owner(
 pub fn execute_change_cw721_minter(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Addr
+    minter: Addr
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -727,7 +727,7 @@ pub fn execute_change_cw721_minter(
     }
 
     let change_msg = Cw721ExecuteMsg::<Extension>::ChangeMinter {
-        minter: owner.clone().into()
+        new_minter: minter.clone().into()
     };
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -739,7 +739,7 @@ pub fn execute_change_cw721_minter(
     Ok(Response::new()
         .add_message(callback)
         .add_attribute("action", "change_cw721_owner")
-        .add_attribute("owner", owner.to_string())
+        .add_attribute("owner", minter.to_string())
         .add_submessages(vec![]))
 }
 

@@ -443,7 +443,7 @@ pub fn execute_change_cw721_owner(
     }
 
     let change_msg = Cw721ExecuteMsg::<Extension>::ChangeMinter {
-        minter: owner.clone().into()
+        new_minter: owner.clone().into()
     };
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
