@@ -158,7 +158,7 @@ where
         for i in 0..msg.token_id.len() {
             // create the token
             let token = TokenInfo {
-                owner: deps.api.addr_validate(&msg.owner)?,
+                owner: deps.api.addr_validate(&msg.owner[i].clone())?,
                 approvals: vec![],
                 token_uri: Some(msg.token_uri[i].clone()),
                 extension: msg.extension[i].clone(),
@@ -171,14 +171,13 @@ where
     
             self.increment_tokens(deps.storage)?;
         }
-        
-        
 
         Ok(Response::new()
             .add_attribute("action", "batch_mint")
             .add_attribute("minter", info.sender)
             .add_attribute("count", msg.token_uri.clone().len().to_string()))
     }
+
 }
 
 impl<'a, T, C> Cw721Execute<T, C> for Cw721Contract<'a, T, C>

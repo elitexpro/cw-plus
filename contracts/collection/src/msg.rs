@@ -25,7 +25,7 @@ pub enum ExecuteMsg {
         uri: Vec<String>, 
         price: Vec<Uint128>, 
         extension:Vec<Extension>,
-        to_owner: Option<bool>
+        owner: Vec<String>
     },
     Receive(Cw20ReceiveMsg),
     ChangeContract {

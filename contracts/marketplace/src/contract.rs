@@ -130,7 +130,7 @@ pub fn execute_add_collection(
             code_id: cfg.collection_code_id,
             msg: to_binary(&msg)?,
             funds: vec![],
-            admin: None,
+            admin: Some(cfg.owner.to_string()),
             label: msg.name.clone(),
         }
         .into(),

@@ -188,8 +188,8 @@ pub fn execute(
         ExecuteMsg::Mint{ uri, price, extension } => {
             execute_mint(deps, env, info, uri, price, extension)
         },
-        ExecuteMsg::BatchMint{ uri, price, extension} => {
-            execute_batch_mint(deps, env, info, uri, price, extension)
+        ExecuteMsg::BatchMint{ uri, price, extension, owner} => {
+            execute_batch_mint(deps, env, info, uri, price, extension, owner)
         },
         ExecuteMsg::Receive(msg) => execute_cw20_buy_move(deps, env, info, msg),
         
@@ -273,7 +273,8 @@ pub fn execute_batch_mint(
     info: MessageInfo,
     uri: Vec<String>,
     price: Vec<Uint128>,
-    extension: Vec<Extension>
+    extension: Vec<Extension>,
+    owner: Vec<String>
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -302,7 +303,7 @@ pub fn execute_batch_mint(
     
     let mint_msg = Cw721ExecuteMsg::BatchMint(BatchMintMsg::<Extension> {
         token_id,
-        owner: env.contract.address.into(),
+        owner,
         token_uri: uri,
         extension: extension.clone(),
     });

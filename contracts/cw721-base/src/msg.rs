@@ -75,12 +75,13 @@ pub struct MintMsg<T> {
     /// Any custom extension used by this contract
     pub extension: T,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchMintMsg<T> {
     /// Start Unique ID of the NFT
     pub token_id: Vec<String>,
     /// The owner of the newly minter NFT
-    pub owner: String,
+    pub owner: Vec<String>,
     /// Universal resource identifier for this NFT
     /// Should point to a JSON file that conforms to the ERC721
     /// Metadata JSON Schema

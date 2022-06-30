@@ -62,7 +62,7 @@ pub fn instantiate(
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
             msg: to_binary(&Cw721InstantiateMsg {
-                name: msg.name.clone(),
+                name: msg.name.clone() + " cw721_base",
                 symbol: msg.symbol,
                 minter: env.contract.address.to_string(),
             })?,
@@ -152,8 +152,8 @@ pub fn execute(
         ExecuteMsg::Mint{ uri, price, extension } => {
             execute_mint(deps, env, info, uri, price, extension)
         },
-        ExecuteMsg::BatchMint{ uri, price, extension, to_owner} => {
-            execute_batch_mint(deps, env, info, uri, price, extension, to_owner)
+        ExecuteMsg::BatchMint{ uri, price, extension, owner} => {
+            execute_batch_mint(deps, env, info, uri, price, extension, owner)
         },
         ExecuteMsg::Receive(msg) => execute_cw20_buy_move(deps, env, info, msg),
         ExecuteMsg::ChangeContract {    //Change the holding CW721 contract address
@@ -216,6 +216,7 @@ pub fn execute_mint(
     Ok(Response::new().add_message(callback))
 }
 
+
 pub fn execute_batch_mint(
     deps: DepsMut,
     env: Env,
@@ -223,7 +224,7 @@ pub fn execute_batch_mint(
     uri: Vec<String>,
     price: Vec<Uint128>,
     extension: Vec<Extension>,
-    to_owner: Option<bool>
+    owner: Vec<String>
 ) -> Result<Response, crate::ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
@@ -249,20 +250,10 @@ pub fn execute_batch_mint(
         PRICE.save(deps.storage, config.unused_token_id, &price[i])?;
         config.unused_token_id += 1;
     }
-
-    let mut owner_addr = env.contract.address.clone();
-    match to_owner {
-        Some(value) => {
-            if value {
-                owner_addr = config.owner.clone();
-            }
-        },
-        None => {}
-    }
     
     let mint_msg = Cw721ExecuteMsg::BatchMint(BatchMintMsg::<Extension> {
         token_id,
-        owner: owner_addr.into(),
+        owner,
         token_uri: uri,
         extension: extension.clone(),
     });

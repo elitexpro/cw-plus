@@ -24,7 +24,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Mint {uri: String, price:Uint128, extension: Extension},
-    BatchMint {uri: Vec<String>, price: Vec<Uint128>, extension:Vec<Extension>},
+    BatchMint {uri: Vec<String>, price: Vec<Uint128>, extension:Vec<Extension>, owner: Vec<String>},
     BuyNative {},
     MoveNative { token_id:u32, recipient: Addr },
     Receive(Cw20ReceiveMsg),
