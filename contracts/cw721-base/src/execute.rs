@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 use cw721::{ContractInfoResponse, CustomMsg, Cw721Execute, Cw721ReceiveMsg, Expiration};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MintMsg, BatchMintMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MintMsg, BatchMintMsg, EditMsg};
 use crate::state::{Approval, Cw721Contract, TokenInfo};
 
 // version info for migration info
@@ -51,6 +51,7 @@ where
             ExecuteMsg::ChangeMinter{new_minter} => {
                 self.change_minter(deps, info, new_minter)
             },
+            ExecuteMsg::Edit(msg) => self.edit(deps, env, info, msg),
             ExecuteMsg::Mint(msg) => self.mint(deps, env, info, msg),
             ExecuteMsg::BatchMint(msg) => self.batch_mint(deps, env, info, msg),
             ExecuteMsg::Approve {
@@ -103,6 +104,34 @@ where
             .add_attribute("action", "change_owner")
             .add_attribute("owner", new_minter))
 
+    }
+
+    
+    pub fn edit(
+        &self,
+        deps: DepsMut,
+        _env: Env,
+        info: MessageInfo,
+        msg: EditMsg<T>,
+    ) -> Result<Response<C>, ContractError> {
+        
+        let mut minter = self.minter.load(deps.storage)?;
+        
+        if info.sender != minter {
+            return Err(ContractError::Unauthorized {});
+        }
+        let mut token = self.tokens.load(deps.storage, &msg.token_id)?;
+        
+        token.extension = msg.extension;
+        token.token_uri = msg.token_uri;
+
+        self.tokens.save(deps.storage, &msg.token_id, &token)?;
+
+
+        Ok(Response::new()
+            .add_attribute("action", "edit")
+            .add_attribute("editor", info.sender.clone())
+            .add_attribute("token_id", msg.token_id))
     }
 
     pub fn mint(

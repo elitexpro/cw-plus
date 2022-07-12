@@ -20,19 +20,33 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Mint {uri: String, price:Uint128, extension: Extension},
+    UpdateOwner {
+        owner: Addr,
+    },
+    UpdateEnabled {
+        enabled: bool
+    },
+    Mint {uri: String, extension: Extension},
+    Edit {token_id: String, uri: String, extension: Extension},
     BatchMint {
         uri: Vec<String>, 
-        price: Vec<Uint128>, 
         extension:Vec<Extension>,
         owner: Vec<String>
+    },
+    StartSale {
+        token_id: u32,    
+        sale_type: SaleType,
+        duration_type: DurationType,
+        initial_price: Uint128,
+        royalty: u32
+    },
+    Propose {
+        token_id: u32,
+        price: Uint128
     },
     Receive(Cw20ReceiveMsg),
     ChangeContract {
         cw721_address: Addr
-    },
-    ChangeOwner {
-        owner: Addr
     },
     ChangeCw721Owner {
         owner: Addr
@@ -51,13 +65,7 @@ pub enum ExecuteMsg {
 pub enum ReceiveMsg {
     Buy {
         token_id: u32,
-        recipient: Addr,
-        sale_price: Uint128
-    },
-    Move {
-        token_id: u32,
-        recipient: Addr
-    },
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -105,6 +113,38 @@ pub struct IsClaimedResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PriceListResponse {
     pub prices: Vec<PriceInfo>,
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Request {
+    pub address: Addr,
+    pub price: Uint128
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum SaleType {
+    Fixed,
+    Auction,
+    Offer
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum DurationType {
+    Fixed,
+    Time(u64),
+    Bid(u32)
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SaleInfo {
+    pub token_id: u32,
+    pub provider: Addr,
+    pub sale_type: SaleType,
+    pub duration_type: DurationType,
+    pub initial_price: Uint128,
+    pub royalty: u32,
+    pub requests: Vec<Request>,
+    pub sell_index: u32
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -14,7 +14,7 @@ use cw_utils::{maybe_addr};
 use cw_storage_plus::Bound;
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, CollectionInfo, CollectionListResponse
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, CollectionInfo, CollectionListResponse, CollectionRecord
 };
 use crate::state::{
     Config, CONFIG, COLLECTIONS
@@ -122,8 +122,14 @@ pub fn execute_add_collection(
     // check_owner(&deps, &info)?;
 
     let cfg = CONFIG.load(deps.storage)?;
-    
-    COLLECTIONS.save(deps.storage, cfg.max_collection_id + 1, &(msg.uri.clone(), info.sender.clone(), info.sender.clone()))?;
+    let record = CollectionRecord {
+        owner: info.sender.clone(),
+        uri: msg.uri.clone(),
+        collection_address: info.sender.clone(),
+        cw721_address: info.sender.clone()
+    };
+
+    COLLECTIONS.save(deps.storage, cfg.max_collection_id + 1, &record)?;
 
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
@@ -164,9 +170,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     cfg.max_collection_id += 1;
     CONFIG.save(deps.storage, &cfg)?;
 
-    let (uri, _collection_address, _cw721_address) = COLLECTIONS.load(deps.storage, cfg.max_collection_id)?;
 
-    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &(uri, collection_address.clone(), cw721_address.clone()))?;
+    let mut record:CollectionRecord = COLLECTIONS.load(deps.storage, cfg.max_collection_id)?;
+    record.collection_address = collection_address.clone();
+    record.cw721_address = cw721_address.clone();
+    COLLECTIONS.save(deps.storage, cfg.max_collection_id, &record)?;
 
     Ok(Response::new()
         .add_attribute("action", "instantiate_collection")
@@ -221,11 +229,19 @@ pub fn execute_edit_collection(
 ) -> Result<Response, ContractError> {
 
     check_owner(&deps, &info)?;
-
-    COLLECTIONS.save(deps.storage, msg.id, &(msg.uri, msg.collection_address, msg.cw721_address))?;
+    let mut record: CollectionRecord = COLLECTIONS.load(deps.storage, msg.id)?;
+    record.owner = msg.owner;
+    record.collection_address = msg.collection_address;
+    record.cw721_address = msg.cw721_address;
+    record.uri = msg.uri;
+    COLLECTIONS.save(deps.storage, msg.id, &record)?;
     
     Ok(Response::new().add_attribute("action", "edit_collection").add_attribute("id", msg.id.to_string()))
 }
+
+
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 20;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -234,8 +250,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             => to_binary(&query_config(deps)?),
         QueryMsg::Collection {id} 
             => to_binary(&query_collection(deps, id)?),
-        QueryMsg::ListCollections {} 
-            => to_binary(&query_list_collections(deps)?)
+        QueryMsg::ListCollections {start_after, limit} 
+            => to_binary(&query_list_collections(deps, start_after, limit)?),
+        QueryMsg::OwnedCollections {owner} 
+            => to_binary(&query_owned_collections(deps, owner)?),
+
     }
 }
 
@@ -252,20 +271,30 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 pub fn query_collection(deps: Deps, id: u32) -> StdResult<CollectionInfo> {
     
-    let (uri, collection_address, cw721_address) = COLLECTIONS.load(deps.storage, id)?;
+    let record: CollectionRecord = COLLECTIONS.load(deps.storage, id)?;
     
     Ok(CollectionInfo {
         id,
-        collection_address,
-        cw721_address,
-        uri
+        owner: record.owner,
+        collection_address: record.collection_address,
+        cw721_address: record.cw721_address,
+        uri: record.uri
     })
 }
 
-pub fn query_list_collections(deps: Deps) 
+pub fn query_list_collections(
+    deps: Deps,
+    start_after: Option<u32>,
+    limit: Option<u32>,
+) 
 -> StdResult<CollectionListResponse> {
+
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+
+    let start = start_after.map(|str| Bound::exclusive(str.to_string()));
+    
     let collections:StdResult<Vec<_>> = COLLECTIONS
-        .range(deps.storage, None, None, Order::Ascending)
+        .range(deps.storage, start, None, Order::Ascending)
         .map(|item| map_collection(item))
         .collect();
 
@@ -275,19 +304,40 @@ pub fn query_list_collections(deps: Deps)
 }
 
 fn map_collection(
-    item: StdResult<(u32, (String, Addr, Addr))>,
+    item: StdResult<(u32, CollectionRecord)>,
 ) -> StdResult<CollectionInfo> {
-    item.map(|(id, (uri, collection_address, cw721_address))| {
+    item.map(|(id, record)| {
         
         CollectionInfo {
             id,
-            collection_address,
-            cw721_address,
-            uri
+            owner: record.owner,
+            collection_address: record.collection_address,
+            cw721_address: record.cw721_address,
+            uri: record.uri
         }
     })
 }
 
+
+
+pub fn query_owned_collections(deps: Deps, owner: Addr) -> StdResult<CollectionListResponse> {
+    
+    
+    let collections:StdResult<Vec<_>> = COLLECTIONS
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|item| map_collection(item))
+        .collect();
+
+    let mut list: Vec<CollectionInfo> = vec![];
+    for item in collections.unwrap() {
+        if item.owner == owner {
+            list.push(item);
+        }
+    }
+    Ok(CollectionListResponse {
+        list
+    })
+}
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]

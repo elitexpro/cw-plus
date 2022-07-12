@@ -10,11 +10,41 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("Already on Sale")]
+    AlreadyOnSale {},
+
+    #[error("InvalidSaleType")]
+    InvalidSaleType {},
+
+    #[error("NotOnSale")]
+    NotOnSale {},
+    
     #[error("NotSupported")]
     NotSupported {},
 
+    #[error("Disabled")]
+    Disabled {},
+
+    #[error("The pool does not contain the input token")]
+    PoolAndTokenMismatch {},
+
+    #[error("Amount of the native coin inputed is zero")]
+    NativeInputZero {},
+
+    #[error("Amount of the cw20 coin inputed is zero")]
+    Cw20InputZero {},
+
+    #[error("Token type mismatch")]
+    TokenTypeMismatch {},
+
     #[error("NotMinted")]
     NotMinted {},
+
+    #[error("InvalidBuyParam")]
+    InvalidBuyParam {},
+
+    #[error("InvalidUserOrPrice")]
+    InvalidUserOrPrice {},
 
     #[error("InvalidCw20Token")]
     InvalidCw20Token {},
@@ -25,8 +55,8 @@ pub enum ContractError {
     #[error("InvalidMaxTokens")]
     InvalidMaxTokens {},
 
-    #[error("SoldOut")]
-    SoldOut {},
+    #[error("MaxTokensExceed")]
+    MaxTokensExceed {},
 
     #[error("OnlyNativeSell")]
     OnlyNativeSell {},
@@ -58,20 +88,23 @@ pub enum ContractError {
     #[error("Cannot migrate from different contract type: {previous_contract}")]
     CannotMigrate { previous_contract: String },
 
-    #[error("Airdrop stage {stage} expired at {expiration}")]
-    StageExpired { stage: u8, expiration: Expiration },
-
-    #[error("Airdrop stage {stage} not expired yet")]
-    StageNotExpired { stage: u8, expiration: Expiration },
-
-    #[error("Airdrop stage {stage} begins at {start}")]
-    StageNotBegun { stage: u8, start: Scheduled },
-
     #[error("Insufficient Tokens")]
     InsufficientFund {},
 
     #[error("AlreadySold")]
     AlreadySold {},
+
+    #[error("AlreadyExpired")]
+    AlreadyExpired {},
+
+    #[error("NotExpired")]
+    NotExpired {},
+
+    #[error("AlreadyFinished")]
+    AlreadyFinished{},
+    
+    #[error("LowerThanPrevious")]
+    LowerThanPrevious {},
 
     #[error("Already claimed")]
     Claimed {},

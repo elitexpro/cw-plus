@@ -43,6 +43,11 @@ pub enum QueryMsg {
         id: u32
     },
     ListCollections {
+        start_after: Option<u32>,
+        limit: Option<u32>
+    },
+    OwnedCollections {
+        owner: Addr
     }
 }
 
@@ -62,8 +67,17 @@ pub struct MigrateMsg {}
 
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct CollectionRecord {
+    pub owner: Addr,
+    pub collection_address: Addr,
+    pub cw721_address: Addr,
+    pub uri: String
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CollectionInfo {
     pub id: u32,
+    pub owner: Addr,
     pub collection_address: Addr,
     pub cw721_address: Addr,
     pub uri: String
