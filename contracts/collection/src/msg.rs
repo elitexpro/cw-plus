@@ -27,7 +27,7 @@ pub enum ExecuteMsg {
         enabled: bool
     },
     Mint {uri: String, extension: Extension},
-    Edit {token_id: String, uri: String, extension: Extension},
+    Edit {token_id: u32, uri: String, extension: Extension},
     BatchMint {
         uri: Vec<String>, 
         extension:Vec<Extension>,
@@ -76,9 +76,13 @@ pub enum ReceiveMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetConfig {},
-    GetPrice {
-        token_id: Vec<u32>,
+    GetSale {
+        token_id: u32,
     },
+    GetSales {
+        start_after: Option<u32>,
+        limit: Option<u32>
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -91,7 +95,8 @@ pub struct ConfigResponse {
     pub symbol: String,
     pub unused_token_id: u32,
     pub royalty: u32,
-    pub uri: String
+    pub uri: String,
+    pub enabled: bool
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -102,23 +107,6 @@ pub struct MerkleRootResponse {
     pub expiration: Expiration,
     pub start: Option<Scheduled>,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PriceInfo {
-    pub token_id: u32,
-    pub price: Uint128
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct IsClaimedResponse {
-    pub is_claimed: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct PriceListResponse {
-    pub prices: Vec<PriceInfo>,
-}
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Request {
@@ -150,6 +138,14 @@ pub struct SaleInfo {
     pub requests: Vec<Request>,
     pub sell_index: u32
 }
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SalesResponse {
+    pub list: Vec<SaleInfo>
+}
+
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}

@@ -67,6 +67,10 @@ pub enum ContractError {
     #[error("Uninitialized")]
     Uninitialized {},
 
+    
+    #[error("Cannot edit on Sale")]
+    CannotEditOnSale {},
+
     #[error("CountNotMatch")]
     CountNotMatch {},
 

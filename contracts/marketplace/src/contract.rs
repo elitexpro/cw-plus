@@ -295,6 +295,7 @@ pub fn query_list_collections(
     
     let collections:StdResult<Vec<_>> = COLLECTIONS
         .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
         .map(|item| map_collection(item))
         .collect();
 

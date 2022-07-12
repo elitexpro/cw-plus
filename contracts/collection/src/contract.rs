@@ -4,7 +4,7 @@ use crate::state::{Config, CONFIG, SALE};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, Api,
-    StdResult, SubMsg, Uint128, WasmMsg, Coin, from_binary, BankMsg, QueryRequest, WasmQuery, Storage
+    StdResult, SubMsg, Uint128, WasmMsg, Coin, from_binary, BankMsg, QueryRequest, WasmQuery, Storage, Order
 };
 use cw2::set_contract_version;
 use cw721::{
@@ -20,7 +20,7 @@ use cw721_base::{
     msg::ExecuteMsg as Cw721ExecuteMsg, msg::InstantiateMsg as Cw721InstantiateMsg, Extension, 
     msg::MintMsg, msg::BatchMintMsg, msg::QueryMsg as Cw721QueryMsg,  msg::EditMsg
 };
-use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MerkleRootResponse, IsClaimedResponse, PriceListResponse, PriceInfo, MigrateMsg, SaleType, DurationType, SaleInfo, Request};
+use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MerkleRootResponse, MigrateMsg, SaleType, DurationType, SaleInfo, SalesResponse, Request};
 use cw_utils::{Expiration, Scheduled};
 use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg, Cw20CoinVerified, Balance};
 use cw_utils::parse_reply_instantiate_data;
@@ -108,7 +108,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, crate::Co
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetPrice {token_id} => to_binary(&query_get_price(deps, token_id)?)
+        QueryMsg::GetSale {token_id} => to_binary(&query_get_sale(deps, token_id)?),
+        QueryMsg::GetSales {start_after, limit} => to_binary(&query_get_sales(deps, start_after, limit)?)
     }
 }
 
@@ -123,26 +124,52 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         symbol: config.symbol,
         unused_token_id: config.unused_token_id,
         royalty: config.royalty,
-        uri: config.uri
+        uri: config.uri,
+        enabled: config.enabled
     })
 }
 
 
-fn query_get_price(
+fn query_get_sale(
     deps: Deps,
-    token_id: Vec<u32>,
-) -> StdResult<PriceListResponse> {
+    token_id: u32,
+) -> StdResult<SaleInfo> {
 
-    let count = token_id.len();
-    let mut ret = vec![];
-    // for i in 0..count {
-    //     ret.push(PriceInfo {
-    //         token_id: token_id[i],
-    //         price: PRICE.load(deps.storage, token_id[i])?
-    //     });
-    // }
+    let sale_info = SALE.load(deps.storage, token_id)?;
+    Ok(sale_info)
+}
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 20;
 
-    Ok(PriceListResponse { prices: ret })
+
+fn map_sales(
+    item: StdResult<(u32, SaleInfo)>,
+) -> StdResult<SaleInfo> {
+    item.map(|(id, record)| {
+        record
+    })
+}
+
+fn query_get_sales(
+    deps: Deps,
+    start_after: Option<u32>,
+    limit: Option<u32>
+) -> StdResult<SalesResponse> {
+
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+
+    let start = start_after.map(|str| Bound::exclusive(str.to_string()));
+    
+    let sales:StdResult<Vec<_>> = SALE
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| map_sales(item))
+        .collect();
+
+    Ok(SalesResponse {
+        list: sales?
+    })
+    
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -161,7 +188,6 @@ pub fn execute(
         ExecuteMsg::Propose { token_id, price } => {
             execute_propose(deps, env, info, token_id, price)
         },
-        
         ExecuteMsg::Edit{ token_id, uri, extension } => {
             execute_edit(deps, env, info, token_id, uri, extension)
         },
@@ -194,16 +220,20 @@ pub fn execute_edit(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    token_id: String,
+    token_id: u32,
     uri: String,
     extension: Extension
 ) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
     let mut config = CONFIG.load(deps.storage)?;
     
     if config.cw721_address == None {
         return Err(crate::ContractError::Uninitialized {});
     }
 
+    if SALE.has(deps.storage, token_id) {
+        return Err(crate::ContractError::CannotEditOnSale {});
+    }
     let owner_of: OwnerOfResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: config.cw721_address.clone().unwrap().to_string(),
         msg: to_binary(&Cw721QueryMsg::OwnerOf {
@@ -217,7 +247,7 @@ pub fn execute_edit(
     }
 
     let edit_msg = Cw721ExecuteMsg::Edit(EditMsg::<Extension> {
-        token_id,
+        token_id: token_id.to_string(),
         token_uri: Some(uri),
         extension,
     });
@@ -241,6 +271,7 @@ pub fn execute_mint(
     uri: String,
     extension: Extension
 ) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
     let mut config = CONFIG.load(deps.storage)?;
     
     if config.cw721_address == None {
@@ -279,6 +310,7 @@ pub fn execute_batch_mint(
     extension: Vec<Extension>,
     owner: Vec<String>
 ) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
     let mut config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
         return Err(crate::ContractError::Unauthorized {});
@@ -333,6 +365,7 @@ pub fn execute_start_sale(
     initial_price: Uint128,
     royalty: u32
 ) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
     //Before call StartSale, the user must execute approve for his NFT
     let mut config = CONFIG.load(deps.storage)?;
     
@@ -399,6 +432,8 @@ pub fn execute_propose(
     token_id: u32,
     price: Uint128
 ) -> Result<Response, crate::ContractError> {
+
+    util::check_enabled(deps.storage)?;
 
     if !SALE.has(deps.storage, token_id) {
         return Err(crate::ContractError::NotOnSale {});
@@ -476,6 +511,7 @@ pub fn execute_buy(
     token_id: u32,
     denom: String 
 ) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
     let mut cfg = CONFIG.load(deps.storage)?;
 
     let mut funds = Coin {
@@ -553,7 +589,7 @@ pub fn execute_receive(
     info: MessageInfo, 
     wrapper: Cw20ReceiveMsg
 ) -> Result<Response, crate::ContractError> {
-    
+    util::check_enabled(deps.storage)?;
     let mut cfg = CONFIG.load(deps.storage)?;
 
     if BLOCKADDR != info.sender.clone() && MARBLEADDR != info.sender.clone() {

@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=testnet
+NETWORK=mainnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -39,6 +39,7 @@ case $NETWORK in
     WALLET="--from new_marble"
     ADDR_ADMIN=$ADDR_MARBLE
     TOKEN_MARBLE="juno1g2g7ucurum66d42g8k5twk34yegdq8c82858gz0tq2fc75zy7khssgnhjl"
+    TOKEN_BLOCK="juno1y9rf7ql6ffwkv02hsgd4yruz23pn4w97p75e2slsnkm0mnamhzysvqnxaq"
     ;;
 esac
 
@@ -50,7 +51,6 @@ RELEASE_DIR="release/"
 
 INFO_DIR="$NETWORK/"
 CW721WASMFILE=$RELEASE_DIR"cw721_base.wasm"
-PRESALEAIRDROPWASMFILE=$RELEASE_DIR"marble_presaleairdrop.wasm"
 COLLECTIONWASMFILE=$RELEASE_DIR"marble_collection.wasm"
 MARKETPLACEWASMFILE=$RELEASE_DIR"marble_marketplace.wasm"
 
@@ -58,13 +58,9 @@ FILE_CODE_CW721_BASE=$INFO_DIR"code_cw721_base.txt"
 FILE_CODE_CW20_BASE=$INFO_DIR"code_cw20_base.txt"
 FILE_CODE_MARBLE_COLLECTION=$INFO_DIR"code_marble_collection.txt"
 FILE_CODE_MARBLE_MARKETPLACE=$INFO_DIR"code_marble_marketplace.txt"
-FILE_CODE_MARBLE_PRESALEAIRDROP=$INFO_DIR"code_marble_presaleairdrop.txt"
 
 FILE_UPLOADHASH=$INFO_DIR"uploadtx.txt"
-FILE_PRESALE_CONTRACT_ADDR=$INFO_DIR"contract_presale.txt"
-FILE_AIRDROP_CONTRACT_ADDR=$INFO_DIR"contract_airdrop.txt"
 FILE_MARKETPLACE_CONTRACT_ADDR=$INFO_DIR"contract_marketplace.txt"
-FILE_MARBLE_CONTRACT_ADDR=$INFO_DIR"contract_marble.txt"
 
 AIRDROP_LIST_1="airdroplist/earlylp.json"
 AIRDROP_LIST_2="airdroplist/final-daodao.json"
@@ -118,11 +114,6 @@ RustBuild() {
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
     cd ..
-    cd presaleairdrop
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
-
-    cd ..
     cd marketplace
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
@@ -151,66 +142,24 @@ Upload() {
     echo $CODE_ID > $INFO_DIR"code_"$CATEGORY".txt"
 }
 # {"name":"STKN","symbol":"STKN","decimals":6,"initial_balances":[],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/prism.png"}}}
-InstantiateMarble() { 
-    echo "================================================="
-    echo "Instantiate Marble Contract"
-    CODE_CW20_BASE=$(cat $FILE_CODE_CW20_BASE)
+# InstantiateMarble() { 
+#     echo "================================================="
+#     echo "Instantiate Marble Contract"
+#     CODE_CW20_BASE=$(cat $FILE_CODE_CW20_BASE)
 
-    echo "CW20-base Code ID: "$CODE_CW20_BASE
+#     echo "CW20-base Code ID: "$CODE_CW20_BASE
     
-    TXHASH=$(junod tx wasm instantiate $CODE_CW20_BASE '{"name":"MARBLE","symbol":"MARBLE","decimals":3,"initial_balances":[],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/marble.png"}}}' --admin $ADDR_ADMIN --label "Marble" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
-    echo $TXHASH
-    CONTRACT_ADDR=""
-    while [[ $CONTRACT_ADDR == "" ]]
-    do
-        sleep 3
-        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
-    done
-    echo $CONTRACT_ADDR
-    echo $CONTRACT_ADDR > $FILE_MARBLE_CONTRACT_ADDR
-}
-
-InstantiatePresale() { 
-    echo "================================================="
-    echo "Instantiate Presale Contract"
-    CODE_MARBLE_PRESALEAIRDROP=$(cat $FILE_CODE_MARBLE_PRESALEAIRDROP)
-    CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
-
-    echo "PresaleAirdrop Code ID: "$CODE_MARBLE_PRESALEAIRDROP
-    echo "CW721-base Code ID: "$CODE_CW721_BASE
-    
-    TXHASH=$(junod tx wasm instantiate $CODE_MARBLE_PRESALEAIRDROP '{"owner":"'$ADDR_ADMIN'", "pay_native": true, "airdrop": false, "native_denom":"'$DENOM'", "max_tokens":100000, "name":"MarbleNFT", "symbol":"MNFT", "token_code_id": '$CODE_CW721_BASE', "cw20_address":"'$TOKEN_MARBLE'", "royalty":0}' --admin $ADDR_ADMIN --label "Marblenauts" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
-    echo $TXHASH
-    CONTRACT_ADDR=""
-    while [[ $CONTRACT_ADDR == "" ]]
-    do
-        sleep 3
-        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
-    done
-    echo $CONTRACT_ADDR
-    echo $CONTRACT_ADDR > $FILE_PRESALE_CONTRACT_ADDR
-}
-
-InstantiateAirdrop() { 
-    echo "================================================="
-    echo "Instantiate Airdrop Contract"
-    CODE_MARBLE_PRESALEAIRDROP=$(cat $FILE_CODE_MARBLE_PRESALEAIRDROP)
-    CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
-
-    echo "PresaleAirdrop Code ID: "$CODE_MARBLE_PRESALEAIRDROP
-    echo "CW721-base Code ID: "$CODE_CW721_BASE
-    
-    TXHASH=$(junod tx wasm instantiate $CODE_MARBLE_PRESALEAIRDROP '{"owner":"'$ADDR_ADMIN'", "pay_native": true, "airdrop": true, "native_denom":"'$DENOM'", "max_tokens":100000, "name":"MarbleNFT", "symbol":"MNFT", "token_code_id": '$CODE_CW721_BASE', "cw20_address":"'$TOKEN_MARBLE'", "royalty":0}' --admin $ADDR_ADMIN --label "MarbleAirdrop" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
-    echo $TXHASH
-    CONTRACT_ADDR=""
-    while [[ $CONTRACT_ADDR == "" ]]
-    do
-        sleep 3
-        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
-    done
-    echo $CONTRACT_ADDR
-    echo $CONTRACT_ADDR > $FILE_AIRDROP_CONTRACT_ADDR
-}
+#     TXHASH=$(junod tx wasm instantiate $CODE_CW20_BASE '{"name":"MARBLE","symbol":"MARBLE","decimals":3,"initial_balances":[],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/marble.png"}}}' --admin $ADDR_ADMIN --label "Marble" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+#     echo $TXHASH
+#     CONTRACT_ADDR=""
+#     while [[ $CONTRACT_ADDR == "" ]]
+#     do
+#         sleep 3
+#         CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+#     done
+#     echo $CONTRACT_ADDR
+#     echo $CONTRACT_ADDR > $FILE_MARBLE_CONTRACT_ADDR
+# }
 
 InstantiateMarketplace() { 
     echo "================================================="
@@ -253,25 +202,9 @@ InstantiateMarketplace() {
 ###################################################################################################
 ###################################################################################################
 ###################################################################################################
-
-SetMerkleString() {
-    
-    MERKLEROOT=$(merkle-airdrop-cli generateRoot --file $AIRDROP_LIST_2)
-    echo $MERKLEROOT
-    echo $MERKLEROOT > $FILE_MERKLEROOT
-    
-    CONTRACT_ADDR=$(cat $FILE_AIRDROP_CONTRACT_ADDR)
-    junod tx wasm execute $CONTRACT_ADDR '{"register_merkle_root":{"merkle_root":"'$MERKLEROOT'"}}' $WALLET $TXFLAG -y
-}
-
-###################################################################################################
-###################################################################################################
-###################################################################################################
-###################################################################################################
 AddCollection() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
     CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
-    TOKEN_MARBLE=$(cat $FILE_MARBLE_CONTRACT_ADDR)
 
     junod tx wasm execute $CONTRACT_MARKETPLACE '{"add_collection":{"owner": "'$ADDR_ADMIN'", "max_tokens": 1000000, "name": "Juno the Protector", "symbol": "MNFT","token_code_id": '$CODE_CW721_BASE',
     "cw20_address": "'$TOKEN_MARBLE'",
@@ -312,8 +245,8 @@ PrintWalletBalance() {
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
     RustBuild
-    CATEGORY=cw20_base
-    Upload
+    # CATEGORY=cw20_base
+    # Upload
     CATEGORY=cw721_base
     Upload
     sleep 3
@@ -323,9 +256,6 @@ if [[ $FUNCTION == "" ]]; then
     CATEGORY=marble_marketplace
     Upload
     sleep 3
-    # Upload marble_presaleairdrop
-    # InstantiatePresale
-    # InstantiateAirdrop
     InstantiateMarble
     InstantiateMarketplace
     sleep 3
