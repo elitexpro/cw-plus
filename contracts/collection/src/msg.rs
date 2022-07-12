@@ -45,6 +45,10 @@ pub enum ExecuteMsg {
         price: Uint128
     },
     Receive(Cw20ReceiveMsg),
+    Buy {
+        token_id: u32,
+        denom: String
+    },
     ChangeContract {
         cw721_address: Addr
     },
