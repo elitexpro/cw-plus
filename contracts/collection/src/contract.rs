@@ -20,7 +20,7 @@ use cw721_base::{
     msg::ExecuteMsg as Cw721ExecuteMsg, msg::InstantiateMsg as Cw721InstantiateMsg, Extension, 
     msg::MintMsg, msg::BatchMintMsg, msg::QueryMsg as Cw721QueryMsg,  msg::EditMsg
 };
-use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MerkleRootResponse, MigrateMsg, SaleType, DurationType, SaleInfo, SalesResponse, Request};
+use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, MigrateMsg, SaleType, DurationType, SaleInfo, SalesResponse, Request};
 use cw_utils::{Expiration, Scheduled};
 use cw20::{Cw20ReceiveMsg, Cw20ExecuteMsg, Cw20CoinVerified, Balance};
 use cw_utils::parse_reply_instantiate_data;

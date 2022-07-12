@@ -209,7 +209,7 @@ AddCollection() {
     junod tx wasm execute $CONTRACT_MARKETPLACE '{"add_collection":{"owner": "'$ADDR_ADMIN'", "max_tokens": 1000000, "name": "Juno the Protector", "symbol": "MNFT","token_code_id": '$CODE_CW721_BASE',
     "cw20_address": "'$TOKEN_MARBLE'",
     "royalty": 0,
-    "uri": "https://marbledao.mypinata.cloud/ipfs/QmQWUou2j7uQ8MFXNg3exN9uaFgk4LgkDDZMCaWwWGMU3w"}}' $WALLET $TXFLAG -y
+    "uri": "QmQWUou2j7uQ8MFXNg3exN9uaFgk4LgkDDZMCaWwWGMU3w"}}' $WALLET $TXFLAG -y
 
     # sleep 10
     

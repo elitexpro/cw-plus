@@ -99,14 +99,6 @@ pub struct ConfigResponse {
     pub enabled: bool
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MerkleRootResponse {
-    pub stage: u8,
-    /// MerkleRoot is hex-encoded merkle root.
-    pub merkle_root: String,
-    pub expiration: Expiration,
-    pub start: Option<Scheduled>,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Request {
