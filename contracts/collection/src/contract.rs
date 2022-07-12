@@ -109,7 +109,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
         QueryMsg::GetSale {token_id} => to_binary(&query_get_sale(deps, token_id)?),
-        QueryMsg::GetSales {start_after, limit} => to_binary(&query_get_sales(deps, start_after, limit)?)
+        QueryMsg::GetSales {start_after, limit} => to_binary(&query_get_sales(deps, start_after, limit)?),
+        QueryMsg::GetBaseAmount {denom, amount} => to_binary(&query_get_base_amount(deps, denom, amount)?)
     }
 }
 
@@ -169,6 +170,85 @@ fn query_get_sales(
     Ok(SalesResponse {
         list: sales?
     })
+    
+}
+
+
+fn query_get_base_amount(
+    deps: Deps,
+    denom: Denom,
+    amount: Uint128
+) -> StdResult<Uint128> {
+
+    let cfg = CONFIG.load(deps.storage)?;
+    match denom {
+        Denom::Native(str) => {
+            let mut workdenom = str.clone();
+            let mut workamount = amount;
+
+            if workdenom != JUNODENOM && workdenom != ATOMDENOM && workdenom != OSMODENOM && workdenom != SCRTDENOM && workdenom != USDCDENOM {
+                return Ok(Uint128::zero());
+            }
+
+            if workdenom == OSMODENOM || workdenom == SCRTDENOM || workdenom == USDCDENOM {
+                let mut pool_address = deps.api.addr_validate(OSMOPOOL)?;
+                if workdenom == OSMODENOM {
+                    pool_address = deps.api.addr_validate(OSMOPOOL)?;
+                } else if workdenom == SCRTDENOM {
+                    pool_address = deps.api.addr_validate(SCRTPOOL)?;
+                } else if workdenom == USDCDENOM {
+                    pool_address = deps.api.addr_validate(USDCPOOL)?;
+                }
+
+                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount).unwrap();
+
+                workdenom = String::from(JUNODENOM);
+                workamount = token2_amount;
+
+            }
+            //Swap to BLOCK if Juno or Atom
+            if workdenom == JUNODENOM || workdenom == ATOMDENOM {
+                let mut pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
+                if workdenom == JUNODENOM {
+                    pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
+                } else if workdenom == ATOMDENOM {
+                    pool_address = deps.api.addr_validate(BLOCKATOMPOOL)?;
+                }
+                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount).unwrap();
+
+                workamount = token2_amount;
+
+            }
+            //Swap to MARBLE if cw20_address is MARBLE
+            if BLOCKADDR != cfg.cw20_address {
+                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL)?, Denom::Cw20(deps.api.addr_validate(BLOCKADDR)?), workamount).unwrap();
+
+                workamount = token2_amount;
+            }
+            return Ok(workamount);
+        },
+        Denom::Cw20(addr) => {
+            if BLOCKADDR != addr.clone() && MARBLEADDR != addr.clone() {
+                return Ok(Uint128::zero());
+            }
+            let mut workamount = amount;
+            if addr.clone() != cfg.cw20_address {
+                if addr.clone() == MARBLEADDR {
+                    let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL).unwrap(), Denom::Cw20(deps.api.addr_validate(MARBLEADDR).unwrap()), workamount).unwrap();
+        
+                    workamount = token2_amount;
+                } else if addr.clone() == BLOCKADDR {
+                    let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL).unwrap(), Denom::Cw20(deps.api.addr_validate(BLOCKADDR).unwrap()), workamount).unwrap();
+        
+                    workamount = token2_amount;
+                } 
+            }
+            return Ok(workamount);
+        }
+    }
+    
+
+    
     
 }
 
@@ -531,6 +611,11 @@ pub fn execute_buy(
     //Swap to Juno if Osmo, Scrt, Usdc
     let mut workdenom = denom.clone();
     let mut workamount = funds.amount;
+
+    if workdenom != JUNODENOM && workdenom != ATOMDENOM && workdenom != OSMODENOM && workdenom != SCRTDENOM && workdenom != USDCDENOM {
+        return Err(crate::ContractError::IncorrectFunds {  });
+    }
+
     if workdenom == OSMODENOM || workdenom == SCRTDENOM || workdenom == USDCDENOM {
         let mut pool_address = deps.api.addr_validate(OSMOPOOL)?;
         if workdenom == OSMODENOM {
@@ -618,7 +703,7 @@ pub fn execute_receive(
 
             messages.append(&mut swap_msgs);
             cw20_amount = token2_amount;
-        }
+        } 
     }
     
     match msg {

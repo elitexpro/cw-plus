@@ -4,6 +4,7 @@ use cw721_base::Extension;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cw_utils::{Expiration, Scheduled};
+use cw20::Denom;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -82,6 +83,10 @@ pub enum QueryMsg {
     GetSales {
         start_after: Option<u32>,
         limit: Option<u32>
+    },
+    GetBaseAmount {
+        denom: Denom,
+        amount: Uint128
     }
 }
 
