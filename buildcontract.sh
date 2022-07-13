@@ -247,21 +247,21 @@ if [[ $FUNCTION == "" ]]; then
     RustBuild
     # CATEGORY=cw20_base
     # Upload
-    CATEGORY=cw721_base
-    Upload
-    sleep 3
+    # CATEGORY=cw721_base
+    # Upload
+    # sleep 3
     CATEGORY=marble_collection
     Upload
     sleep 3
-    CATEGORY=marble_marketplace
-    Upload
-    sleep 3
-    InstantiateMarble
+    # CATEGORY=marble_marketplace
+    # Upload
+    # sleep 3
+    # InstantiateMarble
     InstantiateMarketplace
-    sleep 3
-    AddCollection
-    sleep 3
-    ListCollection
+    # sleep 3
+    # AddCollection
+    # sleep 3
+    # ListCollection
 else
     $FUNCTION $CATEGORY
 fi

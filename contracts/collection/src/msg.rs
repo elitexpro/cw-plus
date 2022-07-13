@@ -39,7 +39,6 @@ pub enum ExecuteMsg {
         sale_type: SaleType,
         duration_type: DurationType,
         initial_price: Uint128,
-        royalty: u32
     },
     Propose {
         token_id: u32,
@@ -120,7 +119,7 @@ pub enum SaleType {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum DurationType {
     Fixed,
-    Time(u64),
+    Time(u64, u64),
     Bid(u32)
 }
 
@@ -131,7 +130,6 @@ pub struct SaleInfo {
     pub sale_type: SaleType,
     pub duration_type: DurationType,
     pub initial_price: Uint128,
-    pub royalty: u32,
     pub requests: Vec<Request>,
     pub sell_index: u32
 }

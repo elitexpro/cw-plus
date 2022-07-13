@@ -163,7 +163,6 @@
           "required": [
             "duration_type",
             "initial_price",
-            "royalty",
             "sale_type",
             "token_id"
           ],
@@ -173,11 +172,6 @@
             },
             "initial_price": {
               "$ref": "#/definitions/Uint128"
-            },
-            "royalty": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
             },
             "sale_type": {
               "$ref": "#/definitions/SaleType"
@@ -395,9 +389,21 @@
           ],
           "properties": {
             "Time": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "type": "array",
+              "items": [
+                {
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                },
+                {
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
             }
           },
           "additionalProperties": false

@@ -16,11 +16,17 @@ pub enum ContractError {
     #[error("InvalidSaleType")]
     InvalidSaleType {},
 
+    #[error("DurationIncorrect")]
+    DurationIncorrect {},
+
     #[error("NotOnSale")]
     NotOnSale {},
     
     #[error("NotSupported")]
     NotSupported {},
+
+    #[error("NotStarted")]
+    NotStarted {},
 
     #[error("Disabled")]
     Disabled {},
