@@ -285,10 +285,6 @@ pub fn execute(
         ExecuteMsg::ChangeCw721Owner {       //Change the owner of Cw721 contract
             owner
         } => execute_change_cw721_owner(deps, info, owner),
-        ExecuteMsg::UpdatePrice {
-            token_id,
-            price
-        } => execute_update_price(deps, info, token_id, price),
         ExecuteMsg::UpdateUnusedTokenId {
             token_id
         } => execute_update_unused_token_id(deps, info, token_id)
@@ -889,26 +885,6 @@ pub fn execute_change_cw721_owner(
         .add_message(callback)
         .add_attribute("action", "change_cw721_owner")
         .add_attribute("owner", owner.to_string())
-        .add_submessages(vec![]))
-}
-
-pub fn execute_update_price(
-    deps: DepsMut,
-    info: MessageInfo,
-    token_id: Vec<u32>,
-    price: Vec<Uint128>
-) -> Result<Response, crate::ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    util::check_owner(deps.storage, info.sender.clone())?;
-    
-    if token_id.len() != price.len() {
-        return Err(crate::ContractError::WrongLength {});
-    }
-    let count = token_id.len();
-
-    Ok(Response::new()
-        .add_attribute("action", "change_price")
-        .add_attribute("count", count.to_string())
         .add_submessages(vec![]))
 }
 
