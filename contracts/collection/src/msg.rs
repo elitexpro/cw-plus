@@ -133,7 +133,8 @@ pub struct TimeDuration {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum DurationType {
     Fixed,
-    Time(TimeDuration),
+    // Time(TimeDuration),
+    Time(u64, u64),
     Bid(u32)
 }
 

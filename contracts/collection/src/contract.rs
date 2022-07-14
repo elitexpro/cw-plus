@@ -137,7 +137,7 @@ fn query_get_sale(
     token_id: u32,
 ) -> StdResult<SaleInfo> {
 
-    let sale_info = SALE.load(deps.storage, token_id)?;
+    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
     Ok(sale_info)
 }
 const MAX_LIMIT: u32 = 30;
@@ -145,7 +145,7 @@ const DEFAULT_LIMIT: u32 = 20;
 
 
 fn map_sales(
-    item: StdResult<(u32, SaleInfo)>,
+    item: StdResult<(String, SaleInfo)>,
 ) -> StdResult<SaleInfo> {
     item.map(|(id, record)| {
         record
@@ -311,7 +311,7 @@ pub fn execute_edit(
         return Err(crate::ContractError::Uninitialized {});
     }
 
-    if SALE.has(deps.storage, token_id) {
+    if SALE.has(deps.storage, token_id.to_string()) {
         return Err(crate::ContractError::CannotEditOnSale {});
     }
     let owner_of: OwnerOfResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -446,12 +446,12 @@ pub fn execute_receive_nft(
         return Err(crate::ContractError::InvalidCw20Token {})
     }
 
-    let token_id = wrapper.token_id.parse().unwrap();
+    let token_id = wrapper.token_id.clone();
     let user_addr = deps.api.addr_validate(wrapper.sender.as_str())?;
 
     let msg: NftReceiveMsg = from_binary(&wrapper.msg)?;
 
-    if SALE.has(deps.storage, token_id) {
+    if SALE.has(deps.storage, token_id.clone()) {
         return Err(crate::ContractError::AlreadyOnSale {});
     }
 
@@ -462,8 +462,8 @@ pub fn execute_receive_nft(
             }
             
             match duration_type.clone() {
-                DurationType::Time(duration) => {
-                    if duration.start >= duration.end {
+                DurationType::Time(start, end) => {
+                    if start >= end {
                         return Err(crate::ContractError::DurationIncorrect {});
                     }
                 },
@@ -472,7 +472,7 @@ pub fn execute_receive_nft(
             }
         
             let info = SaleInfo {
-                token_id,
+                token_id: token_id.parse().unwrap(),
                 provider: user_addr.clone(),
                 sale_type,
                 duration_type,
@@ -480,10 +480,10 @@ pub fn execute_receive_nft(
                 requests: vec![],
                 sell_index: 0u32
             };
-            SALE.save(deps.storage, token_id, &info)?;
+            SALE.save(deps.storage, token_id.clone(), &info)?;
             Ok(Response::new()
                 .add_attribute("action", "start_sale")
-                .add_attribute("token_id", token_id.to_string())
+                .add_attribute("token_id", token_id.clone())
                 .add_attribute("initial_price", initial_price)
             )
         }
@@ -500,20 +500,20 @@ pub fn execute_propose(
 
     util::check_enabled(deps.storage)?;
 
-    if !SALE.has(deps.storage, token_id) {
+    if !SALE.has(deps.storage, token_id.to_string()) {
         return Err(crate::ContractError::NotOnSale {});
     }
-    let mut sale_info = SALE.load(deps.storage, token_id)?;
+    let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
 
     match sale_info.duration_type.clone() {
         DurationType::Fixed => {
 
         }
-        DurationType::Time(duration) => {
-            if env.block.time.seconds() > duration.end {
+        DurationType::Time(start, end) => {
+            if env.block.time.seconds() > end {
                 return Err(crate::ContractError::AlreadyExpired{})
             }
-            if env.block.time.seconds() < duration.start {
+            if env.block.time.seconds() < start {
                 return Err(crate::ContractError::NotStarted{})
             }
         },
@@ -561,7 +561,7 @@ pub fn execute_propose(
     sale_info.requests = list;
     sale_info.sell_index = sell_index;
 
-    SALE.save(deps.storage, token_id, &sale_info)?;
+    SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
 
     Ok(Response::new()
         .add_attribute("action", "propose")
@@ -717,7 +717,7 @@ pub fn sell_msgs(
     cw20_amount: Uint128,
     address: Addr 
 ) -> Result<Vec<CosmosMsg>, crate::ContractError> {
-    let sale_info = SALE.load(deps.storage, token_id)?;
+    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
 
     if sale_info.requests.len() == 0 {
         return Err(crate::ContractError::InvalidBuyParam {  })
@@ -726,8 +726,8 @@ pub fn sell_msgs(
     match sale_info.duration_type.clone() {
         DurationType::Fixed => {
         },
-        DurationType::Time(duration) => {
-            if env.block.time.seconds() < duration.end {
+        DurationType::Time(start, end) => {
+            if env.block.time.seconds() < end {
                 return Err(crate::ContractError::NotExpired{})
             }
         },
