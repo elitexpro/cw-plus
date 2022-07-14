@@ -1,5 +1,7 @@
 use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
+use cw721::Cw721ReceiveMsg;
+
 use cw721_base::Extension;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,17 +36,12 @@ pub enum ExecuteMsg {
         extension:Vec<Extension>,
         owner: Vec<String>
     },
-    StartSale {
-        token_id: u32,    
-        sale_type: SaleType,
-        duration_type: DurationType,
-        initial_price: Uint128,
-    },
     Propose {
         token_id: u32,
         price: Uint128
     },
     Receive(Cw20ReceiveMsg),
+    ReceiveNft(Cw721ReceiveMsg),
     Buy {
         token_id: u32,
         denom: String
@@ -69,6 +66,16 @@ pub enum ExecuteMsg {
 pub enum ReceiveMsg {
     Buy {
         token_id: u32,
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum NftReceiveMsg {
+    StartSale {
+        sale_type: SaleType,
+        duration_type: DurationType,
+        initial_price: Uint128
     }
 }
 
@@ -116,10 +123,17 @@ pub enum SaleType {
     Auction,
     Offer
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TimeDuration {
+    pub start: u64,
+    pub end: u64
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum DurationType {
     Fixed,
-    Time(u64, u64),
+    Time(TimeDuration),
     Bid(u32)
 }
 

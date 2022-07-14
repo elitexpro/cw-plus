@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=mainnet
+NETWORK=devnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -226,7 +226,23 @@ RemoveCollection() {
 
 ListCollection() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
-    junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"list_collections":{}}' $NODECHAIN
+    # junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"list_collections":{}}' $NODECHAIN
+    junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json
+    TXHASH=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    echo $TXHASH
+}
+
+StartSale() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.cw721_address')
+
+    # junod tx wasm execute $CONTRACT_COLLECTION '{"mint": {"uri": "dddd"}}' $WALLET $TXFLAG -y
+    # sleep 3
+    junod tx wasm execute $CONTRACT_CW721 '{"approve": {"spender": "'$CONTRACT_COLLECTION'", "token_id":"0"}}' $WALLET $TXFLAG -y
+    sleep 3
+    junod tx wasm execute $CONTRACT_COLLECTION '{"start_sale": {"token_id": 0, "sale_type": "Auction", "duration_type": {"Time":{"start":100, "end":200}}, "initial_price":"100"}}' $WALLET $TXFLAG -y
+
 }
 
 Test() {
@@ -258,10 +274,13 @@ if [[ $FUNCTION == "" ]]; then
     # sleep 3
     # InstantiateMarble
     InstantiateMarketplace
-    # sleep 3
-    # AddCollection
-    # sleep 3
+    sleep 3
+    AddCollection
+    # sleep 5
     # ListCollection
+    sleep 3
+    StartSale
+
 else
     $FUNCTION $CATEGORY
 fi
