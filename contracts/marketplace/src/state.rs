@@ -10,8 +10,7 @@ pub struct Config {
     pub owner: Addr,
     pub max_collection_id: u32,
     pub collection_code_id: u64,
-    pub cw721_base_code_id: u64
-    
+    pub cw721_base_code_id: u64,
 }
 
 pub const CONFIG_KEY: &str = "config";

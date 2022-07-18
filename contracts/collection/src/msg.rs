@@ -16,7 +16,8 @@ pub struct InstantiateMsg {
     pub symbol: String,
     pub token_code_id: u64,
     pub cw20_address: Addr,
-    pub royalty: u32,
+    pub collection_owner_royalty: u32,
+    pub royalties: Vec<Royalty>,
     pub uri: String
 }
 
@@ -42,6 +43,9 @@ pub enum ExecuteMsg {
     },
     Receive(Cw20ReceiveMsg),
     ReceiveNft(Cw721ReceiveMsg),
+    RemoveSale {
+        token_id: u32,
+    },
     Buy {
         token_id: u32,
         denom: String
@@ -71,7 +75,8 @@ pub enum NftReceiveMsg {
     StartSale {
         sale_type: SaleType,
         duration_type: DurationType,
-        initial_price: Uint128
+        initial_price: Uint128,
+        reserve_price: Uint128
     }
 }
 
@@ -101,7 +106,8 @@ pub struct ConfigResponse {
     pub name: String,
     pub symbol: String,
     pub unused_token_id: u32,
-    pub royalty: u32,
+    pub collection_owner_royalty: u32,
+    pub royalties: Vec<Royalty>,
     pub uri: String,
     pub enabled: bool
 }
@@ -135,12 +141,19 @@ pub enum DurationType {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Royalty {
+    pub address: Addr,
+    pub rate: u32
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SaleInfo {
     pub token_id: u32,
     pub provider: Addr,
     pub sale_type: SaleType,
     pub duration_type: DurationType,
     pub initial_price: Uint128,
+    pub reserve_price: Uint128,
     pub requests: Vec<Request>,
     pub sell_index: u32
 }

@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::Item;
 use cw_utils::{Expiration, Scheduled};
 use cw_storage_plus::{Map};
-use crate::msg::SaleInfo;
+use crate::msg::{SaleInfo, Royalty};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -17,7 +17,8 @@ pub struct Config {
     pub name: String,
     pub symbol: String,
     pub unused_token_id: u32,
-    pub royalty: u32,
+    pub collection_owner_royalty: u32,
+    pub royalties: Vec<Royalty>,
     pub uri: String,
     pub enabled: bool
 }

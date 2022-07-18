@@ -57,7 +57,8 @@ pub fn instantiate(
         name: msg.name.clone(),
         symbol: msg.symbol.clone(),
         unused_token_id: 0,
-        royalty: msg.royalty,
+        collection_owner_royalty: msg.collection_owner_royalty,
+        royalties: msg.royalties,
         enabled: true,
         uri: msg.uri
     };
@@ -125,7 +126,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         name: config.name,
         symbol: config.symbol,
         unused_token_id: config.unused_token_id,
-        royalty: config.royalty,
+        collection_owner_royalty: config.collection_owner_royalty,
+        royalties: config.royalties,
         uri: config.uri,
         enabled: config.enabled
     })
@@ -147,7 +149,7 @@ const DEFAULT_LIMIT: u32 = 20;
 fn map_sales(
     item: StdResult<(String, SaleInfo)>,
 ) -> StdResult<SaleInfo> {
-    item.map(|(id, record)| {
+    item.map(|(_id, record)| {
         record
     })
 }
@@ -267,7 +269,9 @@ pub fn execute(
         ExecuteMsg::Propose { token_id, price } => {
             execute_propose(deps, env, info, token_id, price)
         },
-        
+        ExecuteMsg::RemoveSale { token_id } => {
+            execute_remove_sale(deps, env, info, token_id)
+        },
         ExecuteMsg::Edit{ token_id, uri, extension } => {
             execute_edit(deps, env, info, token_id, uri, extension)
         },
@@ -452,7 +456,7 @@ pub fn execute_receive_nft(
     }
 
     match msg {
-        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price} => {
+        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price, reserve_price} => {
             if sale_type == SaleType::Fixed && duration_type != DurationType::Fixed {
                 return Err(crate::ContractError::InvalidSaleType {});
             }
@@ -473,14 +477,17 @@ pub fn execute_receive_nft(
                 sale_type,
                 duration_type,
                 initial_price,
+                reserve_price,
                 requests: vec![],
                 sell_index: 0u32
             };
+            
             SALE.save(deps.storage, token_id.clone(), &info)?;
             Ok(Response::new()
                 .add_attribute("action", "start_sale")
                 .add_attribute("token_id", token_id.clone())
                 .add_attribute("initial_price", initial_price)
+                .add_attribute("reserve_price", reserve_price)
             )
         }
     }
@@ -564,6 +571,49 @@ pub fn execute_propose(
         .add_attribute("address", info.sender.clone())
         .add_attribute("token_id", token_id.to_string())
         .add_attribute("price", price)
+    )
+}
+
+
+pub fn execute_remove_sale(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: u32
+) -> Result<Response, crate::ContractError> {
+
+    util::check_enabled(deps.storage)?;
+
+    if !SALE.has(deps.storage, token_id.to_string()) {
+        return Err(crate::ContractError::NotOnSale {});
+    }
+    
+    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
+
+    if sale_info.provider != info.sender {
+        return Err(crate::ContractError::Unauthorized {  });
+    }
+
+    
+
+    let cfg = CONFIG.load(deps.storage)?;
+
+    let mut msgs: Vec<CosmosMsg> = vec![];
+    msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: cfg.cw721_address.clone().unwrap().to_string(),
+        funds: vec![],
+        msg: to_binary(&Cw721ExecuteMsg::<Extension>::TransferNft {
+            recipient: info.sender.clone().into(),
+            token_id: sale_info.token_id.to_string()
+        })?,
+    }));
+
+    SALE.remove(deps.storage, token_id.to_string());
+
+    Ok(Response::new()
+        .add_messages(msgs)
+        .add_attribute("action", "remove_sale")
+        .add_attribute("token_id", token_id.to_string())
     )
 }
 
@@ -719,20 +769,20 @@ pub fn sell_msgs(
         return Err(crate::ContractError::InvalidBuyParam {  })
     }
 
-    match sale_info.duration_type.clone() {
-        DurationType::Fixed => {
-        },
-        DurationType::Time(start, end) => {
-            if env.block.time.seconds() < end {
-                return Err(crate::ContractError::NotExpired{})
-            }
-        },
-        DurationType::Bid(threshold) => {
-            if (sale_info.requests.len() as u32) < threshold {
-                return Err(crate::ContractError::NotExpired {})
-            }
-        },
-    }
+    // match sale_info.duration_type.clone() {
+    //     DurationType::Fixed => {
+    //     },
+    //     DurationType::Time(start, end) => {
+    //         if env.block.time.seconds() < end {
+    //             return Err(crate::ContractError::NotExpired{})
+    //         }
+    //     },
+    //     DurationType::Bid(threshold) => {
+    //         if (sale_info.requests.len() as u32) < threshold {
+    //             return Err(crate::ContractError::NotExpired {})
+    //         }
+    //     },
+    // }
     
     let index = sale_info.clone().sell_index as usize;
     let price = sale_info.clone().requests[index].price;
@@ -740,10 +790,17 @@ pub fn sell_msgs(
         return Err(crate::ContractError::InvalidUserOrPrice {})
     }
 
+    if sale_info.sale_type == SaleType::Auction && price < sale_info.reserve_price {
+        return Err(crate::ContractError::LowerThanReserved {})
+    }
+
+    //Remove Entry
+    SALE.remove(deps.storage, token_id.to_string());
     //send NFT
     sell_nft_messages(deps.storage, deps.api, address.clone(), cw20_amount, sale_info)
     
 }
+const MULTIPLY:u32 = 1000000u32;
 
 pub fn sell_nft_messages (
     storage: &mut dyn Storage,
@@ -752,25 +809,34 @@ pub fn sell_nft_messages (
     cw20_amount: Uint128,
     sale_info: SaleInfo
 ) -> Result<Vec<CosmosMsg>, crate::ContractError> {
-    let mut cfg = CONFIG.load(storage)?;
+    let cfg = CONFIG.load(storage)?;
 
 
     let collection_owner = cfg.owner.clone();
-    let collection_owner_royalty = cfg.royalty;
+    let collection_owner_royalty = cfg.collection_owner_royalty;
 
     let super_owner = api.addr_validate("juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn")?;
     let super_owner_royalty = 25000u32; // 2.5%
 
-    let multiply = 1000000u32;
-    
-    let super_owner_amount = cw20_amount * Uint128::from(super_owner_royalty) / Uint128::from(multiply);
-    let collection_owner_amount = cw20_amount * Uint128::from(collection_owner_royalty) / Uint128::from(multiply);
-    let provider_amount = cw20_amount - super_owner_amount - collection_owner_amount;
-    
     let mut list:Vec<Request> = vec![];
+    
+    let super_owner_amount = cw20_amount * Uint128::from(super_owner_royalty) / Uint128::from(MULTIPLY);
+
+    let collection_owner_amount = cw20_amount * Uint128::from(collection_owner_royalty - super_owner_royalty) / Uint128::from(MULTIPLY);
+
     list.push(Request { address: super_owner.clone(), price: super_owner_amount });
-    list.push(Request { address: sale_info.provider.clone(), price: provider_amount });
     list.push(Request { address: collection_owner.clone(), price: collection_owner_amount });
+
+    let mut provider_amount = cw20_amount - super_owner_amount - collection_owner_amount;
+
+    for item in cfg.royalties {
+        let amount = cw20_amount * Uint128::from(item.rate) / Uint128::from(MULTIPLY);
+        provider_amount -= amount;
+
+        list.push(Request { address: item.address.clone(), price: amount });
+    }
+    
+    list.push(Request { address: sale_info.provider.clone(), price: provider_amount });
 
     let mut msgs: Vec<CosmosMsg> = vec![];
     msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {

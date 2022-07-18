@@ -294,8 +294,8 @@ if [[ $FUNCTION == "" ]]; then
     CATEGORY=marble_collection
     Upload
     sleep 3
-    # CATEGORY=marble_marketplace
-    # Upload
+    CATEGORY=marble_marketplace
+    Upload
     # sleep 3
     # InstantiateMarble
     InstantiateMarketplace

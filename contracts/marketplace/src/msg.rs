@@ -8,7 +8,7 @@ use marble_collection::msg::{InstantiateMsg as CollectionInstantiateMsg, Execute
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InstantiateMsg {
     pub collection_code_id: u64,
-    pub cw721_base_code_id: u64
+    pub cw721_base_code_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,7 +19,7 @@ pub enum ExecuteMsg {
     },
     UpdateConstants {
         collection_code_id: u64,
-        cw721_base_code_id: u64
+        cw721_base_code_id: u64,
     },
     // AddCollection {
     //     collection_addr: Addr,

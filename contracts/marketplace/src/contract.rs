@@ -41,7 +41,7 @@ pub fn instantiate(
         owner,
         max_collection_id: 0u32,
         collection_code_id: msg.collection_code_id,
-        cw721_base_code_id: msg.cw721_base_code_id
+        cw721_base_code_id: msg.cw721_base_code_id,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -98,7 +98,7 @@ pub fn execute_update_constants(
     deps: DepsMut,
     info: MessageInfo,
     collection_code_id: u64,
-    cw721_base_code_id: u64
+    cw721_base_code_id: u64,
 ) -> Result<Response, ContractError> {
     // authorize owner
     check_owner(&deps, &info)?;
@@ -120,6 +120,17 @@ pub fn execute_add_collection(
 ) -> Result<Response, ContractError> {
 
     // check_owner(&deps, &info)?;
+    let mut sum = 0u32;
+    if msg.collection_owner_royalty < 25000u32 {
+        return Err(crate::ContractError::MustBigger25 {});
+    }
+
+    for item in msg.royalties.clone() {
+        sum += item.rate;
+    }
+    if msg.collection_owner_royalty + sum > 1000000 / 2 {
+        return Err(crate::ContractError::TooBigRoyalties {a: msg.collection_owner_royalty, b: sum, c: 1000000/2});
+    }
 
     let cfg = CONFIG.load(deps.storage)?;
     let record = CollectionRecord {
@@ -189,7 +200,13 @@ pub fn execute_remove_collection(
     info: MessageInfo,
     id: u32
 ) -> Result<Response, ContractError>{
-    check_owner(&deps, &info)?;
+    // check_owner(&deps, &info)?;
+    let record: CollectionRecord = COLLECTIONS.load(deps.storage, id)?;
+    let cfg = CONFIG.load(deps.storage)?;
+
+    if record.owner != info.sender.clone() && record.owner != cfg.owner.clone() {
+        return Err(ContractError::Unauthorized {});
+    }
     COLLECTIONS.remove(deps.storage, id);
     Ok(Response::new()
         .add_attribute("action", "remove_collection")

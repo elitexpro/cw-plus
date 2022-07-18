@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 use cw_utils::{Expiration, Scheduled};
 
@@ -51,6 +51,9 @@ pub enum ContractError {
 
     #[error("InvalidUserOrPrice")]
     InvalidUserOrPrice {},
+
+    #[error("LowerThanReserved")]
+    LowerThanReserved {},
 
     #[error("InvalidCw20Token")]
     InvalidCw20Token {},
