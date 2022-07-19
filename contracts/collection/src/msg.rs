@@ -15,7 +15,6 @@ pub struct InstantiateMsg {
     pub name: String,
     pub symbol: String,
     pub token_code_id: u64,
-    pub cw20_address: Addr,
     pub collection_owner_royalty: u32,
     pub royalties: Vec<Royalty>,
     pub uri: String
@@ -30,6 +29,10 @@ pub enum ExecuteMsg {
     UpdateEnabled {
         enabled: bool
     },
+    UpdateRoyalties {
+        collection_owner_royalty: u32,
+        royalties: Vec<Royalty>
+    },
     Mint {uri: String, extension: Extension},
     Edit {token_id: u32, uri: String, extension: Extension},
     BatchMint {
@@ -37,18 +40,14 @@ pub enum ExecuteMsg {
         extension:Vec<Extension>,
         owner: Vec<String>
     },
-    Propose {
-        token_id: u32,
-        price: Uint128
-    },
+
     Receive(Cw20ReceiveMsg),
     ReceiveNft(Cw721ReceiveMsg),
-    RemoveSale {
-        token_id: u32,
+    AcceptSale {
+        token_id: u32
     },
-    Buy {
+    CancelSale {
         token_id: u32,
-        denom: String
     },
     ChangeContract {
         cw721_address: Addr
@@ -64,8 +63,8 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReceiveMsg {
-    Buy {
-        token_id: u32,
+    Propose {
+        token_id: u32
     }
 }
 
@@ -76,7 +75,8 @@ pub enum NftReceiveMsg {
         sale_type: SaleType,
         duration_type: DurationType,
         initial_price: Uint128,
-        reserve_price: Uint128
+        reserve_price: Uint128,
+        cw20_address: Addr
     }
 }
 
@@ -91,16 +91,12 @@ pub enum QueryMsg {
         start_after: Option<u32>,
         limit: Option<u32>
     },
-    GetBaseAmount {
-        denom: Denom,
-        amount: Uint128
-    }
+    
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: Addr,
-    pub cw20_address: Addr,
     pub cw721_address: Option<Addr>,
     pub max_tokens: u32,
     pub name: String,
@@ -122,8 +118,7 @@ pub struct Request {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum SaleType {
     Fixed,
-    Auction,
-    Offer
+    Auction
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -155,7 +150,8 @@ pub struct SaleInfo {
     pub initial_price: Uint128,
     pub reserve_price: Uint128,
     pub requests: Vec<Request>,
-    pub sell_index: u32
+    pub cw20_address: Addr,
+    pub can_accept: bool 
 }
 
 

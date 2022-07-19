@@ -17,12 +17,11 @@ pub enum ContractError {
     #[error("InvalidTokenReplyId")]
     InvalidTokenReplyId {},
     
+    #[error("Unauthorized")]
+    Unauthorized {},
     
     #[error("TooBigRoyalties: {a} + {b} > {c}")]
     TooBigRoyalties{a: u32, b: u32, c: u32},
-    
-    #[error("Unauthorized")]
-    Unauthorized {},
 
     #[error("Royalty must bigger than 2.5%")]
     MustBigger25 {},

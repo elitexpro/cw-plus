@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use cw20::{Balance, Cw20ExecuteMsg, Denom, BalanceResponse as CW20BalanceResponse, Cw20QueryMsg};
 use crate::error::ContractError;
 use crate::state::CONFIG;
-
+use crate::msg::Royalty;
 use wasmswap::msg::{ExecuteMsg as WasmswapExecuteMsg, QueryMsg as WasmswapQueryMsg, Token1ForToken2PriceResponse, Token2ForToken1PriceResponse, InfoResponse as WasmswapInfoResponse, TokenSelect};
 
 pub const MAX_LIMIT: u32 = 30;
@@ -63,6 +63,36 @@ pub fn execute_update_enabled (
     
     CONFIG.update(storage, |mut exists| -> StdResult<_> {
         exists.enabled = enabled;
+        Ok(exists)
+    })?;
+
+    Ok(Response::new().add_attribute("action", "update_enabled"))
+}
+
+pub fn execute_update_royalties (
+    storage: &mut dyn Storage,
+    address: Addr,
+    collection_owner_royalty: u32,
+    royalties: Vec<Royalty>
+) -> Result<Response, ContractError> {
+    // authorize owner
+    check_owner(storage, address)?;
+
+    let mut sum = 0u32;
+    if collection_owner_royalty < 25000u32 {
+        return Err(ContractError::MustBigger25 {});
+    }
+
+    for item in royalties.clone() {
+        sum += item.rate;
+    }
+    if collection_owner_royalty + sum > 1000000 / 2 {
+        return Err(ContractError::TooBigRoyalties {a: collection_owner_royalty, b: sum, c: 1000000/2});
+    }
+    
+    CONFIG.update(storage, |mut exists| -> StdResult<_> {
+        exists.collection_owner_royalty = collection_owner_royalty;
+        exists.royalties = royalties;
         Ok(exists)
     })?;
 

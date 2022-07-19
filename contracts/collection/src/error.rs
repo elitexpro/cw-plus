@@ -13,6 +13,16 @@ pub enum ContractError {
     #[error("Already on Sale")]
     AlreadyOnSale {},
 
+    #[error("CannotCancelSale")]
+    CannotCancelSale {},
+
+    #[error("TooBigRoyalties: {a} + {b} > {c}")]
+    TooBigRoyalties{a: u32, b: u32, c: u32},
+
+    #[error("Royalty must bigger than 2.5%")]
+    MustBigger25 {},
+
+
     #[error("InvalidSaleType")]
     InvalidSaleType {},
 
@@ -21,6 +31,9 @@ pub enum ContractError {
 
     #[error("NotOnSale")]
     NotOnSale {},
+
+    #[error("NotReachedReservedPrice")]
+    NotReachedReservedPrice {},
     
     #[error("NotSupported")]
     NotSupported {},
@@ -121,6 +134,9 @@ pub enum ContractError {
     
     #[error("LowerThanPrevious")]
     LowerThanPrevious {},
+
+    #[error("LowerPrice")]
+    LowerPrice {},
 
     #[error("Already claimed")]
     Claimed {},

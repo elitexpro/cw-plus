@@ -299,15 +299,15 @@ if [[ $FUNCTION == "" ]]; then
     # sleep 3
     # InstantiateMarble
     InstantiateMarketplace
-    sleep 3
-    AddCollection
-    # sleep 5
-    # ListCollection
-    sleep 3
-    Mint
-    sleep 3
+    # sleep 3
+    # AddCollection
+    # # sleep 5
+    # # ListCollection
+    # sleep 3
+    # Mint
+    # sleep 3
     
-    StartSale
+    # StartSale
 
 else
     $FUNCTION $CATEGORY

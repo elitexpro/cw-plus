@@ -51,7 +51,6 @@ pub fn instantiate(
 
     let config = Config {
         owner: msg.owner.clone(),
-        cw20_address: msg.cw20_address,
         cw721_address: None,
         max_tokens: msg.max_tokens,
         name: msg.name.clone(),
@@ -112,7 +111,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
         QueryMsg::GetSale {token_id} => to_binary(&query_get_sale(deps, token_id)?),
         QueryMsg::GetSales {start_after, limit} => to_binary(&query_get_sales(deps, start_after, limit)?),
-        QueryMsg::GetBaseAmount {denom, amount} => to_binary(&query_get_base_amount(deps, denom, amount)?)
     }
 }
 
@@ -120,7 +118,6 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         owner: config.owner,
-        cw20_address: config.cw20_address,
         cw721_address: config.cw721_address,
         max_tokens: config.max_tokens,
         name: config.name,
@@ -176,85 +173,6 @@ fn query_get_sales(
     
 }
 
-
-fn query_get_base_amount(
-    deps: Deps,
-    denom: Denom,
-    amount: Uint128
-) -> StdResult<Uint128> {
-
-    let cfg = CONFIG.load(deps.storage)?;
-    match denom {
-        Denom::Native(str) => {
-            let mut workdenom = str.clone();
-            let mut workamount = amount;
-
-            if workdenom != JUNODENOM && workdenom != ATOMDENOM && workdenom != OSMODENOM && workdenom != SCRTDENOM && workdenom != USDCDENOM {
-                return Ok(Uint128::zero());
-            }
-
-            if workdenom == OSMODENOM || workdenom == SCRTDENOM || workdenom == USDCDENOM {
-                let mut pool_address = deps.api.addr_validate(OSMOPOOL)?;
-                if workdenom == OSMODENOM {
-                    pool_address = deps.api.addr_validate(OSMOPOOL)?;
-                } else if workdenom == SCRTDENOM {
-                    pool_address = deps.api.addr_validate(SCRTPOOL)?;
-                } else if workdenom == USDCDENOM {
-                    pool_address = deps.api.addr_validate(USDCPOOL)?;
-                }
-
-                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount).unwrap();
-
-                workdenom = String::from(JUNODENOM);
-                workamount = token2_amount;
-
-            }
-            //Swap to BLOCK if Juno or Atom
-            if workdenom == JUNODENOM || workdenom == ATOMDENOM {
-                let mut pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
-                if workdenom == JUNODENOM {
-                    pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
-                } else if workdenom == ATOMDENOM {
-                    pool_address = deps.api.addr_validate(BLOCKATOMPOOL)?;
-                }
-                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount).unwrap();
-
-                workamount = token2_amount;
-
-            }
-            //Swap to MARBLE if cw20_address is MARBLE
-            if BLOCKADDR != cfg.cw20_address {
-                let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL)?, Denom::Cw20(deps.api.addr_validate(BLOCKADDR)?), workamount).unwrap();
-
-                workamount = token2_amount;
-            }
-            return Ok(workamount);
-        },
-        Denom::Cw20(addr) => {
-            if BLOCKADDR != addr.clone() && MARBLEADDR != addr.clone() {
-                return Ok(Uint128::zero());
-            }
-            let mut workamount = amount;
-            if addr.clone() != cfg.cw20_address {
-                if addr.clone() == MARBLEADDR {
-                    let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL).unwrap(), Denom::Cw20(deps.api.addr_validate(MARBLEADDR).unwrap()), workamount).unwrap();
-        
-                    workamount = token2_amount;
-                } else if addr.clone() == BLOCKADDR {
-                    let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL).unwrap(), Denom::Cw20(deps.api.addr_validate(BLOCKADDR).unwrap()), workamount).unwrap();
-        
-                    workamount = token2_amount;
-                } 
-            }
-            return Ok(workamount);
-        }
-    }
-    
-
-    
-    
-}
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -265,24 +183,24 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => util::execute_update_owner(deps.storage, info.sender, owner),
         ExecuteMsg::UpdateEnabled { enabled } => util::execute_update_enabled(deps.storage, info.sender, enabled),
-        ExecuteMsg::ReceiveNft(msg) => execute_receive_nft(deps, env, info, msg),
-        ExecuteMsg::Propose { token_id, price } => {
-            execute_propose(deps, env, info, token_id, price)
+        ExecuteMsg::UpdateRoyalties { collection_owner_royalty, royalties } => util::execute_update_royalties(deps.storage, info.sender, collection_owner_royalty, royalties),
+        ExecuteMsg::ReceiveNft(msg) => execute_receive_nft(deps, info, msg),
+        ExecuteMsg::AcceptSale { token_id } => {
+            execute_accept_sale(deps, info, token_id)
         },
-        ExecuteMsg::RemoveSale { token_id } => {
-            execute_remove_sale(deps, env, info, token_id)
+        ExecuteMsg::CancelSale { token_id } => {
+            execute_cancel_sale(deps, info, token_id)
         },
         ExecuteMsg::Edit{ token_id, uri, extension } => {
-            execute_edit(deps, env, info, token_id, uri, extension)
+            execute_edit(deps, info, token_id, uri, extension)
         },
         ExecuteMsg::Mint{ uri, extension } => {
-            execute_mint(deps, env, info, uri, extension)
+            execute_mint(deps, info, uri, extension)
         },
         ExecuteMsg::BatchMint{ uri, extension, owner} => {
-            execute_batch_mint(deps, env, info, uri, extension, owner)
+            execute_batch_mint(deps, info, uri, extension, owner)
         },
         ExecuteMsg::Receive(msg) => execute_receive(deps, env, info, msg),
-        ExecuteMsg::Buy{ token_id, denom } => execute_buy(deps, env, info, token_id, denom),
         ExecuteMsg::ChangeContract {    //Change the holding CW721 contract address
             cw721_address
         } => execute_change_contract(deps, info, cw721_address),
@@ -298,14 +216,13 @@ pub fn execute(
 
 pub fn execute_edit(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     token_id: u32,
     uri: String,
     extension: Extension
 ) -> Result<Response, crate::ContractError> {
     util::check_enabled(deps.storage)?;
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     
     if config.cw721_address == None {
         return Err(crate::ContractError::Uninitialized {});
@@ -345,7 +262,6 @@ pub fn execute_edit(
 
 pub fn execute_mint(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     uri: String,
     extension: Extension
@@ -383,7 +299,6 @@ pub fn execute_mint(
 
 pub fn execute_batch_mint(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     uri: Vec<String>,
     extension: Vec<Extension>,
@@ -409,7 +324,7 @@ pub fn execute_batch_mint(
 
     let count = uri.len();
     let mut token_id:Vec<String> = vec![];
-    for i in 0..count {
+    for _i in 0..count {
         token_id.push(config.unused_token_id.to_string());
         config.unused_token_id += 1;
     }
@@ -435,7 +350,6 @@ pub fn execute_batch_mint(
 
 pub fn execute_receive_nft(
     deps: DepsMut, 
-    env: Env,
     info: MessageInfo, 
     wrapper: Cw721ReceiveMsg
 ) -> Result<Response, crate::ContractError> {
@@ -456,7 +370,7 @@ pub fn execute_receive_nft(
     }
 
     match msg {
-        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price, reserve_price} => {
+        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price, reserve_price, cw20_address} => {
             if sale_type == SaleType::Fixed && duration_type != DurationType::Fixed {
                 return Err(crate::ContractError::InvalidSaleType {});
             }
@@ -468,7 +382,7 @@ pub fn execute_receive_nft(
                     }
                 },
                 DurationType::Fixed => {},
-                DurationType::Bid(count) => {}
+                DurationType::Bid(_count) => {}
             }
         
             let info = SaleInfo {
@@ -479,7 +393,8 @@ pub fn execute_receive_nft(
                 initial_price,
                 reserve_price,
                 requests: vec![],
-                sell_index: 0u32
+                cw20_address: cw20_address.clone(),
+                can_accept: false
             };
             
             SALE.save(deps.storage, token_id.clone(), &info)?;
@@ -488,17 +403,17 @@ pub fn execute_receive_nft(
                 .add_attribute("token_id", token_id.clone())
                 .add_attribute("initial_price", initial_price)
                 .add_attribute("reserve_price", reserve_price)
+                .add_attribute("cw20_address", cw20_address.clone().to_string())
             )
         }
     }
 }
 
-pub fn execute_propose(
+
+pub fn execute_accept_sale(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
-    token_id: u32,
-    price: Uint128
+    token_id: u32
 ) -> Result<Response, crate::ContractError> {
 
     util::check_enabled(deps.storage)?;
@@ -506,78 +421,49 @@ pub fn execute_propose(
     if !SALE.has(deps.storage, token_id.to_string()) {
         return Err(crate::ContractError::NotOnSale {});
     }
-    let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
-
-    match sale_info.duration_type.clone() {
-        DurationType::Fixed => {
-
-        }
-        DurationType::Time(start, end) => {
-            if env.block.time.seconds() > end {
-                return Err(crate::ContractError::AlreadyExpired{})
-            }
-            if env.block.time.seconds() < start {
-                return Err(crate::ContractError::NotStarted{})
-            }
-        },
-        DurationType::Bid(threshold) => {
-            if sale_info.requests.len() as u32 >= threshold {
-                return Err(crate::ContractError::AlreadyExpired{})
-            }
-        },
-    }
-
-    let mut list = sale_info.requests.clone();
-    let mut sell_index = 0;
-
-    if sale_info.sale_type == SaleType::Fixed {
-        if sale_info.requests.len() > 0 {
-            return Err(crate::ContractError::AlreadyFinished{})
-        }
-        if sale_info.initial_price > price {
-            return Err(crate::ContractError::LowerThanPrevious{})
-        }
-    } else if sale_info.sale_type == SaleType::Auction {
-        
-        if list.len() == 0 && price < sale_info.initial_price || list.len() > 0 && list[list.len() - 1].price >= price {
-            return Err(crate::ContractError::LowerThanPrevious {})
-        }
-    }
-
-    list.push(Request {
-        address: info.sender.clone(),
-        price
-    });
     
-    if sale_info.sale_type != SaleType::Offer {
-        sell_index = list.len() as u32 - 1;
-    } else {
-        sell_index = 0;
-        let mut max = Uint128::zero();
-        for i in 0..list.len() {
-            if max < list[i].price {
-                sell_index = i as u32;
-                max = list[i].price;
-            }
-        }
+    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
+    
+    if sale_info.provider != info.sender {
+        return Err(crate::ContractError::Unauthorized {  });
     }
-    sale_info.requests = list;
-    sale_info.sell_index = sell_index;
+    
+    if !sale_info.can_accept {
+        return Err(crate::ContractError::NotReachedReservedPrice {});
+    }
 
-    SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
+    let list = sale_info.requests.clone();
+    let len = sale_info.requests.len();
+    let sell_request = list.get(len - 1).unwrap();
+    //Add NFT send msg
+    let mut msgs = sell_nft_messages(deps.storage, deps.api, sell_request.address.clone(), sell_request.price.clone(), sale_info.clone())?;
+
+    //Add return fund msg
+    for i in 0..len - 1 {
+        let request = list.get(i).unwrap();
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: sale_info.cw20_address.clone().to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: request.address.clone().to_string(),
+                amount: request.price
+            })?,
+        }));
+    }
+    
+    SALE.remove(deps.storage, token_id.to_string());
 
     Ok(Response::new()
-        .add_attribute("action", "propose")
-        .add_attribute("address", info.sender.clone())
+        .add_messages(msgs)
+        .add_attribute("action", "accept_sale")
         .add_attribute("token_id", token_id.to_string())
-        .add_attribute("price", price)
+        .add_attribute("address", sell_request.address.clone().to_string())
+        .add_attribute("price", sell_request.price)
     )
 }
 
-
-pub fn execute_remove_sale(
+pub fn execute_cancel_sale(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     token_id: u32
 ) -> Result<Response, crate::ContractError> {
@@ -594,7 +480,9 @@ pub fn execute_remove_sale(
         return Err(crate::ContractError::Unauthorized {  });
     }
 
-    
+    if sale_info.can_accept {
+        return Err(crate::ContractError::CannotCancelSale {  });
+    }
 
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -612,194 +500,111 @@ pub fn execute_remove_sale(
 
     Ok(Response::new()
         .add_messages(msgs)
-        .add_attribute("action", "remove_sale")
+        .add_attribute("action", "cancel_sale")
         .add_attribute("token_id", token_id.to_string())
     )
 }
 
 
-pub fn execute_buy(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    token_id: u32,
-    denom: String 
-) -> Result<Response, crate::ContractError> {
-    util::check_enabled(deps.storage)?;
-    let mut cfg = CONFIG.load(deps.storage)?;
-
-    let mut funds = Coin {
-        amount: Uint128::new(0),
-        denom: denom.clone(),
-    };
-
-    for coin in &info.funds {
-        if coin.denom == denom {
-            funds = Coin {
-                amount: funds.amount + coin.amount,
-                denom: funds.denom,
-            }
-        }
-    }
-    let mut messages:Vec<CosmosMsg> = vec![];
-    //Swap to Juno if Osmo, Scrt, Usdc
-    let mut workdenom = denom.clone();
-    let mut workamount = funds.amount;
-
-    if workdenom != JUNODENOM && workdenom != ATOMDENOM && workdenom != OSMODENOM && workdenom != SCRTDENOM && workdenom != USDCDENOM {
-        return Err(crate::ContractError::IncorrectFunds {  });
-    }
-
-    if workdenom == OSMODENOM || workdenom == SCRTDENOM || workdenom == USDCDENOM {
-        let mut pool_address = deps.api.addr_validate(OSMOPOOL)?;
-        if workdenom == OSMODENOM {
-            pool_address = deps.api.addr_validate(OSMOPOOL)?;
-        } else if workdenom == SCRTDENOM {
-            pool_address = deps.api.addr_validate(SCRTPOOL)?;
-        } else if workdenom == USDCDENOM {
-            pool_address = deps.api.addr_validate(USDCPOOL)?;
-        }
-
-        let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount)?;
-        messages.append(&mut swap_msgs);
-
-        workdenom = String::from(JUNODENOM);
-        workamount = token2_amount;
-
-    }
-    //Swap to BLOCK if Juno or Atom
-    if workdenom == JUNODENOM || workdenom == ATOMDENOM {
-        let mut pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
-        if workdenom == JUNODENOM {
-            pool_address = deps.api.addr_validate(BLOCKJUNOPOOL)?;
-        } else if workdenom == ATOMDENOM {
-            pool_address = deps.api.addr_validate(BLOCKATOMPOOL)?;
-        }
-        let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, pool_address.clone(), Denom::Native(workdenom), workamount)?;
-        messages.append(&mut swap_msgs);
-
-        workamount = token2_amount;
-
-    }
-    //Swap to MARBLE if cw20_address is MARBLE
-    if BLOCKADDR != cfg.cw20_address {
-        let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL)?, Denom::Cw20(deps.api.addr_validate(BLOCKADDR)?), workamount)?;
-
-        messages.append(&mut swap_msgs);
-        workamount = token2_amount;
-    }
-    
-    // Now workamount is the cfg.cw20_address token's amount
-    
-    let mut msgs = sell_msgs(deps, env, token_id, workamount, info.sender.clone())?;
-    messages.append(&mut msgs);
-
-    return Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("action", "sell")
-        .add_attribute("address", info.sender.clone())
-        .add_attribute("token_id", token_id.to_string())
-    );
-}
-
 pub fn execute_receive(
-    deps: DepsMut, 
+    deps: DepsMut,
     env: Env,
     info: MessageInfo, 
     wrapper: Cw20ReceiveMsg
 ) -> Result<Response, crate::ContractError> {
     util::check_enabled(deps.storage)?;
-    let mut cfg = CONFIG.load(deps.storage)?;
-
-    if BLOCKADDR != info.sender.clone() && MARBLEADDR != info.sender.clone() {
-        return Err(crate::ContractError::InvalidCw20Token {})
-    }
 
     let msg: ReceiveMsg = from_binary(&wrapper.msg)?;
     
-    let balance = Balance::Cw20(Cw20CoinVerified {
-        address: info.sender.clone(),
-        amount: wrapper.amount,
-    });
-    
     let user_addr = deps.api.addr_validate(&wrapper.sender)?;
-    let mut cw20_amount = wrapper.amount;
-
-    let mut messages:Vec<CosmosMsg> = vec![];
-    if info.sender.clone() != cfg.cw20_address {
-        if info.sender.clone() == MARBLEADDR {
-            let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL)?, Denom::Cw20(deps.api.addr_validate(MARBLEADDR)?), wrapper.amount)?;
-
-            messages.append(&mut swap_msgs);
-            cw20_amount = token2_amount;
-        } else if info.sender.clone() == BLOCKADDR {
-            let (token2_amount, token2_denom, mut swap_msgs) = util::get_swap_amount_and_denom_and_message(deps.querier, deps.api.addr_validate(BLOCKMARBLEPOOL)?, Denom::Cw20(deps.api.addr_validate(BLOCKADDR)?), wrapper.amount)?;
-
-            messages.append(&mut swap_msgs);
-            cw20_amount = token2_amount;
-        } 
-    }
+    let cw20_amount = wrapper.amount;
     
     match msg {
-        ReceiveMsg::Buy {token_id} => {
-            let mut msgs = sell_msgs(deps, env, token_id, cw20_amount, user_addr.clone())?;
-            messages.append(&mut msgs);
+        
+        ReceiveMsg::Propose { token_id } => {
 
-            return Ok(Response::new()
-                .add_messages(messages)
-                .add_attribute("action", "sell")
-                .add_attribute("address", user_addr.clone())
-                .add_attribute("token_id", token_id.to_string())
-            );
+            if !SALE.has(deps.storage, token_id.to_string()) {
+                return Err(crate::ContractError::NotOnSale {});
+            }
+            let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
+
+            if sale_info.cw20_address != info.sender.clone() {
+                return Err(crate::ContractError::InvalidCw20Token {})
+            }
+
+            match sale_info.duration_type.clone() {
+                DurationType::Fixed => {
+        
+                }
+                DurationType::Time(start, end) => {
+                    if env.block.time.seconds() > end {
+                        return Err(crate::ContractError::AlreadyExpired{})
+                    }
+                    if env.block.time.seconds() < start {
+                        return Err(crate::ContractError::NotStarted{})
+                    }
+                },
+                DurationType::Bid(threshold) => {
+                    if sale_info.requests.len() as u32 > threshold {
+                        return Err(crate::ContractError::AlreadyExpired{})
+                    }
+                },
+            }
+        
+            let mut list = sale_info.requests.clone();
+            
+            if sale_info.sale_type == SaleType::Fixed {
+                if sale_info.initial_price > cw20_amount {
+                    return Err(crate::ContractError::LowerPrice{})
+                }
+            } else if sale_info.sale_type == SaleType::Auction {
+                
+                if list.len() == 0 && cw20_amount < sale_info.initial_price || list.len() > 0 && list[list.len() - 1].price >= cw20_amount {
+                    return Err(crate::ContractError::LowerThanPrevious {})
+                }
+            }
+
+            list.push(Request {
+                address: user_addr.clone(),
+                price: cw20_amount
+            });
+            
+            sale_info.requests = list;
+
+            if sale_info.sale_type == SaleType::Auction && cw20_amount >= sale_info.reserve_price {
+                sale_info.can_accept = true;
+            }
+
+            SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
+
+            //Handle Fixed
+            if sale_info.sale_type == SaleType::Fixed {
+                //send NFT messages
+                let msgs = sell_nft_messages(deps.storage, deps.api, user_addr.clone(), cw20_amount, sale_info)?;
+                //Remove Entry
+                SALE.remove(deps.storage, token_id.to_string());
+
+                return Ok(Response::new()
+                    .add_messages(msgs)
+                    .add_attribute("action", "fixed_sell")
+                    .add_attribute("address", user_addr.clone())
+                    .add_attribute("token_id", token_id.to_string())
+                    .add_attribute("price", cw20_amount)
+                );
+
+            } else {
+                Ok(Response::new()
+                    .add_attribute("action", "propose")
+                    .add_attribute("address", user_addr.clone())
+                    .add_attribute("token_id", token_id.to_string())
+                    .add_attribute("price", cw20_amount)
+                )    
+            }
         }
     }
     
 }
 
-pub fn sell_msgs(
-    deps: DepsMut,
-    env: Env,
-    token_id: u32,
-    cw20_amount: Uint128,
-    address: Addr 
-) -> Result<Vec<CosmosMsg>, crate::ContractError> {
-    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
-
-    if sale_info.requests.len() == 0 {
-        return Err(crate::ContractError::InvalidBuyParam {  })
-    }
-
-    // match sale_info.duration_type.clone() {
-    //     DurationType::Fixed => {
-    //     },
-    //     DurationType::Time(start, end) => {
-    //         if env.block.time.seconds() < end {
-    //             return Err(crate::ContractError::NotExpired{})
-    //         }
-    //     },
-    //     DurationType::Bid(threshold) => {
-    //         if (sale_info.requests.len() as u32) < threshold {
-    //             return Err(crate::ContractError::NotExpired {})
-    //         }
-    //     },
-    // }
-    
-    let index = sale_info.clone().sell_index as usize;
-    let price = sale_info.clone().requests[index].price;
-    if sale_info.clone().requests[index].address != address.clone() || price > cw20_amount {
-        return Err(crate::ContractError::InvalidUserOrPrice {})
-    }
-
-    if sale_info.sale_type == SaleType::Auction && price < sale_info.reserve_price {
-        return Err(crate::ContractError::LowerThanReserved {})
-    }
-
-    //Remove Entry
-    SALE.remove(deps.storage, token_id.to_string());
-    //send NFT
-    sell_nft_messages(deps.storage, deps.api, address.clone(), cw20_amount, sale_info)
-    
-}
 const MULTIPLY:u32 = 1000000u32;
 
 pub fn sell_nft_messages (
@@ -853,7 +658,7 @@ pub fn sell_nft_messages (
             continue;
         }
         msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: cfg.cw20_address.clone().into(),
+            contract_addr: sale_info.cw20_address.clone().into(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: item.address.clone().into(),
                 amount: item.price
@@ -932,7 +737,7 @@ pub fn execute_change_cw721_owner(
     info: MessageInfo,
     owner: Addr
 ) -> Result<Response, crate::ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     if info.sender != config.owner {
         return Err(crate::ContractError::Unauthorized {});
     }
