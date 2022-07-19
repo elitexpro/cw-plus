@@ -200,7 +200,12 @@ pub fn execute(
         ExecuteMsg::BatchMint{ uri, extension, owner} => {
             execute_batch_mint(deps, info, uri, extension, owner)
         },
+
+
+        ExecuteMsg::Propose{token_id, denom} => execute_propose(deps, env, info, token_id, denom),
         ExecuteMsg::Receive(msg) => execute_receive(deps, env, info, msg),
+        
+        
         ExecuteMsg::ChangeContract {    //Change the holding CW721 contract address
             cw721_address
         } => execute_change_contract(deps, info, cw721_address),
@@ -357,7 +362,7 @@ pub fn execute_receive_nft(
     let cfg = CONFIG.load(deps.storage)?;
 
     if info.sender.clone() != cfg.cw721_address.clone().unwrap() {
-        return Err(crate::ContractError::InvalidCw20Token {})
+        return Err(crate::ContractError::InvalidCw721Token {})
     }
 
     let token_id = wrapper.token_id.clone();
@@ -370,7 +375,7 @@ pub fn execute_receive_nft(
     }
 
     match msg {
-        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price, reserve_price, cw20_address} => {
+        NftReceiveMsg::StartSale {sale_type, duration_type, initial_price, reserve_price, denom} => {
             if sale_type == SaleType::Fixed && duration_type != DurationType::Fixed {
                 return Err(crate::ContractError::InvalidSaleType {});
             }
@@ -393,7 +398,7 @@ pub fn execute_receive_nft(
                 initial_price,
                 reserve_price,
                 requests: vec![],
-                cw20_address: cw20_address.clone(),
+                denom,
                 can_accept: false
             };
             
@@ -403,12 +408,10 @@ pub fn execute_receive_nft(
                 .add_attribute("token_id", token_id.clone())
                 .add_attribute("initial_price", initial_price)
                 .add_attribute("reserve_price", reserve_price)
-                .add_attribute("cw20_address", cw20_address.clone().to_string())
             )
         }
     }
 }
-
 
 pub fn execute_accept_sale(
     deps: DepsMut,
@@ -441,14 +444,7 @@ pub fn execute_accept_sale(
     //Add return fund msg
     for i in 0..len - 1 {
         let request = list.get(i).unwrap();
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: sale_info.cw20_address.clone().to_string(),
-            funds: vec![],
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: request.address.clone().to_string(),
-                amount: request.price
-            })?,
-        }));
+        msgs.push(util::transfer_token_message(sale_info.denom.clone(), request.price, request.address.clone())?);
     }
     
     SALE.remove(deps.storage, token_id.to_string());
@@ -496,6 +492,13 @@ pub fn execute_cancel_sale(
         })?,
     }));
 
+    let list = sale_info.requests.clone();
+    //Add return fund msg
+    for i in 0..list.len() {
+        let request = list.get(i).unwrap();
+        msgs.push(util::transfer_token_message(sale_info.denom.clone(), request.price, request.address.clone())?);
+    }
+
     SALE.remove(deps.storage, token_id.to_string());
 
     Ok(Response::new()
@@ -506,13 +509,31 @@ pub fn execute_cancel_sale(
 }
 
 
+pub fn execute_propose(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: u32,
+    denom: String 
+) -> Result<Response, crate::ContractError> {
+
+    let sale_info = SALE.load(deps.storage, token_id.to_string())?;
+    if sale_info.denom != Denom::Native(denom.clone()) {
+        return Err(crate::ContractError::InvalidNativeToken {})
+    }
+
+    let amount = util::get_amount_of_denom(Balance::from(info.funds), Denom::Native(denom.clone()))?;
+
+    handle_propose(deps, env, token_id, info.sender.clone(), amount)
+    
+}
+
 pub fn execute_receive(
     deps: DepsMut,
     env: Env,
     info: MessageInfo, 
     wrapper: Cw20ReceiveMsg
 ) -> Result<Response, crate::ContractError> {
-    util::check_enabled(deps.storage)?;
 
     let msg: ReceiveMsg = from_binary(&wrapper.msg)?;
     
@@ -520,89 +541,99 @@ pub fn execute_receive(
     let cw20_amount = wrapper.amount;
     
     match msg {
-        
         ReceiveMsg::Propose { token_id } => {
 
-            if !SALE.has(deps.storage, token_id.to_string()) {
-                return Err(crate::ContractError::NotOnSale {});
-            }
-            let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
-
-            if sale_info.cw20_address != info.sender.clone() {
+            let sale_info = SALE.load(deps.storage, token_id.to_string())?;
+            if sale_info.denom != Denom::Cw20(info.sender.clone()) {
                 return Err(crate::ContractError::InvalidCw20Token {})
             }
-
-            match sale_info.duration_type.clone() {
-                DurationType::Fixed => {
-        
-                }
-                DurationType::Time(start, end) => {
-                    if env.block.time.seconds() > end {
-                        return Err(crate::ContractError::AlreadyExpired{})
-                    }
-                    if env.block.time.seconds() < start {
-                        return Err(crate::ContractError::NotStarted{})
-                    }
-                },
-                DurationType::Bid(threshold) => {
-                    if sale_info.requests.len() as u32 > threshold {
-                        return Err(crate::ContractError::AlreadyExpired{})
-                    }
-                },
-            }
-        
-            let mut list = sale_info.requests.clone();
-            
-            if sale_info.sale_type == SaleType::Fixed {
-                if sale_info.initial_price > cw20_amount {
-                    return Err(crate::ContractError::LowerPrice{})
-                }
-            } else if sale_info.sale_type == SaleType::Auction {
-                
-                if list.len() == 0 && cw20_amount < sale_info.initial_price || list.len() > 0 && list[list.len() - 1].price >= cw20_amount {
-                    return Err(crate::ContractError::LowerThanPrevious {})
-                }
-            }
-
-            list.push(Request {
-                address: user_addr.clone(),
-                price: cw20_amount
-            });
-            
-            sale_info.requests = list;
-
-            if sale_info.sale_type == SaleType::Auction && cw20_amount >= sale_info.reserve_price {
-                sale_info.can_accept = true;
-            }
-
-            SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
-
-            //Handle Fixed
-            if sale_info.sale_type == SaleType::Fixed {
-                //send NFT messages
-                let msgs = sell_nft_messages(deps.storage, deps.api, user_addr.clone(), cw20_amount, sale_info)?;
-                //Remove Entry
-                SALE.remove(deps.storage, token_id.to_string());
-
-                return Ok(Response::new()
-                    .add_messages(msgs)
-                    .add_attribute("action", "fixed_sell")
-                    .add_attribute("address", user_addr.clone())
-                    .add_attribute("token_id", token_id.to_string())
-                    .add_attribute("price", cw20_amount)
-                );
-
-            } else {
-                Ok(Response::new()
-                    .add_attribute("action", "propose")
-                    .add_attribute("address", user_addr.clone())
-                    .add_attribute("token_id", token_id.to_string())
-                    .add_attribute("price", cw20_amount)
-                )    
-            }
+            handle_propose(deps, env, token_id, user_addr.clone(), cw20_amount)
         }
     }
+}
+
+pub fn handle_propose(
+    deps: DepsMut,
+    env: Env,
+    token_id: u32,
+    address: Addr, 
+    price: Uint128
+) -> Result<Response, crate::ContractError> {
+
+    util::check_enabled(deps.storage)?;
+    if !SALE.has(deps.storage, token_id.to_string()) {
+        return Err(crate::ContractError::NotOnSale {});
+    }
+    let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
+
+    match sale_info.duration_type.clone() {
+        DurationType::Fixed => {
+
+        }
+        DurationType::Time(start, end) => {
+            if env.block.time.seconds() > end {
+                return Err(crate::ContractError::AlreadyExpired{})
+            }
+            if env.block.time.seconds() < start {
+                return Err(crate::ContractError::NotStarted{})
+            }
+        },
+        DurationType::Bid(threshold) => {
+            if sale_info.requests.len() as u32 > threshold {
+                return Err(crate::ContractError::AlreadyExpired{})
+            }
+        },
+    }
+
+    let mut list = sale_info.requests.clone();
     
+    if sale_info.sale_type == SaleType::Fixed {
+        if sale_info.initial_price > price {
+            return Err(crate::ContractError::LowerPrice{})
+        }
+    } else if sale_info.sale_type == SaleType::Auction {
+        
+        if list.len() == 0 && price < sale_info.initial_price || list.len() > 0 && list[list.len() - 1].price >= price {
+            return Err(crate::ContractError::LowerThanPrevious {})
+        }
+    }
+
+    list.push(Request {
+        address: address.clone(),
+        price
+    });
+    
+    sale_info.requests = list;
+
+    if sale_info.sale_type == SaleType::Auction && price >= sale_info.reserve_price {
+        sale_info.can_accept = true;
+    }
+
+    SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
+
+    //Handle Fixed
+    if sale_info.sale_type == SaleType::Fixed {
+        //send NFT messages
+        let msgs = sell_nft_messages(deps.storage, deps.api, address.clone(), price, sale_info)?;
+        //Remove Entry
+        SALE.remove(deps.storage, token_id.to_string());
+
+        return Ok(Response::new()
+            .add_messages(msgs)
+            .add_attribute("action", "fixed_sell")
+            .add_attribute("address", address.clone())
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute("price", price)
+        );
+
+    } else {
+        Ok(Response::new()
+            .add_attribute("action", "propose")
+            .add_attribute("address", address.clone())
+            .add_attribute("token_id", token_id.to_string())
+            .add_attribute("price", price)
+        )    
+    }
 }
 
 const MULTIPLY:u32 = 1000000u32;
@@ -611,31 +642,28 @@ pub fn sell_nft_messages (
     storage: &mut dyn Storage,
     api: &dyn Api,
     recipient: Addr,
-    cw20_amount: Uint128,
+    amount: Uint128,
     sale_info: SaleInfo
 ) -> Result<Vec<CosmosMsg>, crate::ContractError> {
     let cfg = CONFIG.load(storage)?;
-
-
-    let collection_owner = cfg.owner.clone();
-    let collection_owner_royalty = cfg.collection_owner_royalty;
+    let mut list:Vec<Request> = vec![];
 
     let super_owner = api.addr_validate("juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn")?;
     let super_owner_royalty = 25000u32; // 2.5%
 
-    let mut list:Vec<Request> = vec![];
+    let collection_owner = cfg.owner.clone();
+    let collection_owner_royalty = cfg.collection_owner_royalty;
     
-    let super_owner_amount = cw20_amount * Uint128::from(super_owner_royalty) / Uint128::from(MULTIPLY);
-
-    let collection_owner_amount = cw20_amount * Uint128::from(collection_owner_royalty - super_owner_royalty) / Uint128::from(MULTIPLY);
+    let super_owner_amount = amount * Uint128::from(super_owner_royalty) / Uint128::from(MULTIPLY);
+    let collection_owner_amount = amount * Uint128::from(collection_owner_royalty - super_owner_royalty) / Uint128::from(MULTIPLY);
 
     list.push(Request { address: super_owner.clone(), price: super_owner_amount });
     list.push(Request { address: collection_owner.clone(), price: collection_owner_amount });
 
-    let mut provider_amount = cw20_amount - super_owner_amount - collection_owner_amount;
+    let mut provider_amount = amount - super_owner_amount - collection_owner_amount;
 
     for item in cfg.royalties {
-        let amount = cw20_amount * Uint128::from(item.rate) / Uint128::from(MULTIPLY);
+        let amount = amount * Uint128::from(item.rate) / Uint128::from(MULTIPLY);
         provider_amount -= amount;
 
         list.push(Request { address: item.address.clone(), price: amount });
@@ -657,14 +685,7 @@ pub fn sell_nft_messages (
         if item.price == Uint128::zero() {
             continue;
         }
-        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: sale_info.cw20_address.clone().into(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: item.address.clone().into(),
-                amount: item.price
-            })?,
-            funds: vec![],
-        }));
+        msgs.push(util::transfer_token_message(sale_info.denom.clone(), item.price, item.address.clone())?);
     }
 
     Ok(msgs)

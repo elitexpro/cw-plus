@@ -275,7 +275,6 @@ pub fn swap_token_messages(
 
 
 pub fn transfer_token_message(
-    _querier: QuerierWrapper,
     denom: Denom,
     amount: Uint128,
     receiver: Addr

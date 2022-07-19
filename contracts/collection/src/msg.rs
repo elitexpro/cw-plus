@@ -40,7 +40,10 @@ pub enum ExecuteMsg {
         extension:Vec<Extension>,
         owner: Vec<String>
     },
-
+    Propose {
+        token_id: u32,
+        denom: String
+    },
     Receive(Cw20ReceiveMsg),
     ReceiveNft(Cw721ReceiveMsg),
     AcceptSale {
@@ -76,7 +79,7 @@ pub enum NftReceiveMsg {
         duration_type: DurationType,
         initial_price: Uint128,
         reserve_price: Uint128,
-        cw20_address: Addr
+        denom: Denom
     }
 }
 
@@ -150,7 +153,7 @@ pub struct SaleInfo {
     pub initial_price: Uint128,
     pub reserve_price: Uint128,
     pub requests: Vec<Request>,
-    pub cw20_address: Addr,
+    pub denom: Denom,
     pub can_accept: bool 
 }
 

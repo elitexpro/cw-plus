@@ -71,6 +71,9 @@ pub enum ContractError {
     #[error("InvalidCw20Token")]
     InvalidCw20Token {},
 
+    #[error("InvalidNativeToken")]
+    InvalidNativeToken {},
+
     #[error("InvalidCw721Token")]
     InvalidCw721Token {},
 
