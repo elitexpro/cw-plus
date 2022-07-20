@@ -32,8 +32,8 @@ pub enum ContractError {
     #[error("NotOnSale")]
     NotOnSale {},
 
-    #[error("NotReachedReservedPrice")]
-    NotReachedReservedPrice {},
+    #[error("NoBids")]
+    NoBids {},
     
     #[error("NotSupported")]
     NotSupported {},

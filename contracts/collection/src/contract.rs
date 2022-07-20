@@ -431,10 +431,10 @@ pub fn execute_accept_sale(
         return Err(crate::ContractError::Unauthorized {  });
     }
     
-    if !sale_info.can_accept {
-        return Err(crate::ContractError::NotReachedReservedPrice {});
+    if sale_info.requests.len() == 0 {
+        return Err(crate::ContractError::NoBids {});
     }
-
+    
     let list = sale_info.requests.clone();
     let len = sale_info.requests.len();
     let sell_request = list.get(len - 1).unwrap();
