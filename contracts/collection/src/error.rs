@@ -83,6 +83,12 @@ pub enum ContractError {
     #[error("InvalidMaxTokens")]
     InvalidMaxTokens {},
 
+    #[error("InvalidFirstRoyalty")]
+    InvalidFirstRoyalty {},
+
+    #[error("ExceedsMaximumRoyaltyFee")]
+    ExceedsMaximumRoyaltyFee {},
+
     #[error("MaxTokensExceed")]
     MaxTokensExceed {},
 

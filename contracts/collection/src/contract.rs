@@ -49,6 +49,18 @@ pub fn instantiate(
         return Err(crate::ContractError::InvalidMaxTokens {});
     }
 
+    if !(msg.royalties.clone().len() > 0 && msg.royalties.clone()[0].address == info.sender.clone()) {
+        return Err(crate::ContractError::InvalidFirstRoyalty {});
+    }
+    let mut sum = 0;
+    for item in msg.royalties.clone() {
+        sum += item.rate;
+    }
+
+    if sum > msg.maximum_royalty_fee {
+        return Err(crate::ContractError::ExceedsMaximumRoyaltyFee {});
+    }
+
     let config = Config {
         owner: msg.owner.clone(),
         cw721_address: None,
@@ -56,7 +68,7 @@ pub fn instantiate(
         name: msg.name.clone(),
         symbol: msg.symbol.clone(),
         unused_token_id: 0,
-        collection_owner_royalty: msg.collection_owner_royalty,
+        maximum_royalty_fee: msg.maximum_royalty_fee,
         royalties: msg.royalties,
         enabled: true,
         uri: msg.uri
@@ -123,7 +135,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         name: config.name,
         symbol: config.symbol,
         unused_token_id: config.unused_token_id,
-        collection_owner_royalty: config.collection_owner_royalty,
+        maximum_royalty_fee: config.maximum_royalty_fee,
         royalties: config.royalties,
         uri: config.uri,
         enabled: config.enabled
@@ -183,7 +195,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => util::execute_update_owner(deps.storage, info.sender, owner),
         ExecuteMsg::UpdateEnabled { enabled } => util::execute_update_enabled(deps.storage, info.sender, enabled),
-        ExecuteMsg::UpdateRoyalties { collection_owner_royalty, royalties } => util::execute_update_royalties(deps.storage, info.sender, collection_owner_royalty, royalties),
+        ExecuteMsg::UpdateRoyalties { maximum_royalty_fee, royalties } => util::execute_update_royalties(deps.storage, info.sender, maximum_royalty_fee, royalties),
         ExecuteMsg::ReceiveNft(msg) => execute_receive_nft(deps, info, msg),
         ExecuteMsg::AcceptSale { token_id } => {
             execute_accept_sale(deps, info, token_id)
@@ -191,16 +203,15 @@ pub fn execute(
         ExecuteMsg::CancelSale { token_id } => {
             execute_cancel_sale(deps, info, token_id)
         },
-        ExecuteMsg::Edit{ token_id, uri, extension } => {
-            execute_edit(deps, info, token_id, uri, extension)
-        },
+        // ExecuteMsg::Edit{ token_id, uri, extension } => {
+        //     execute_edit(deps, info, token_id, uri, extension)
+        // },
         ExecuteMsg::Mint{ uri, extension } => {
-            execute_mint(deps, info, uri, extension)
+            execute_mint(deps, env, info, uri, extension)
         },
         ExecuteMsg::BatchMint{ uri, extension, owner} => {
-            execute_batch_mint(deps, info, uri, extension, owner)
+            execute_batch_mint(deps, env, info, uri, extension, owner)
         },
-
 
         ExecuteMsg::Propose{token_id, denom} => execute_propose(deps, env, info, token_id, denom),
         ExecuteMsg::Receive(msg) => execute_receive(deps, env, info, msg),
@@ -219,54 +230,55 @@ pub fn execute(
 }
 
 
-pub fn execute_edit(
-    deps: DepsMut,
-    info: MessageInfo,
-    token_id: u32,
-    uri: String,
-    extension: Extension
-) -> Result<Response, crate::ContractError> {
-    util::check_enabled(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
+// pub fn execute_edit(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     token_id: u32,
+//     uri: String,
+//     extension: Extension
+// ) -> Result<Response, crate::ContractError> {
+//     util::check_enabled(deps.storage)?;
+//     let config = CONFIG.load(deps.storage)?;
     
-    if config.cw721_address == None {
-        return Err(crate::ContractError::Uninitialized {});
-    }
+//     if config.cw721_address == None {
+//         return Err(crate::ContractError::Uninitialized {});
+//     }
 
-    if SALE.has(deps.storage, token_id.to_string()) {
-        return Err(crate::ContractError::CannotEditOnSale {});
-    }
-    let owner_of: OwnerOfResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: config.cw721_address.clone().unwrap().to_string(),
-        msg: to_binary(&Cw721QueryMsg::OwnerOf {
-            token_id: token_id.to_string(),
-            include_expired: Some(true)
-        })?,
-    }))?;
+//     if SALE.has(deps.storage, token_id.to_string()) {
+//         return Err(crate::ContractError::CannotEditOnSale {});
+//     }
+//     let owner_of: OwnerOfResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+//         contract_addr: config.cw721_address.clone().unwrap().to_string(),
+//         msg: to_binary(&Cw721QueryMsg::OwnerOf {
+//             token_id: token_id.to_string(),
+//             include_expired: Some(true)
+//         })?,
+//     }))?;
 
-    if info.sender.clone().to_string() != owner_of.owner {
-        return Err(crate::ContractError::Unauthorized {});
-    }
+//     if info.sender.clone().to_string() != owner_of.owner {
+//         return Err(crate::ContractError::Unauthorized {});
+//     }
 
-    let edit_msg = Cw721ExecuteMsg::Edit(EditMsg::<Extension> {
-        token_id: token_id.to_string(),
-        token_uri: Some(uri),
-        extension,
-    });
+//     let edit_msg = Cw721ExecuteMsg::Edit(EditMsg::<Extension> {
+//         token_id: token_id.to_string(),
+//         token_uri: Some(uri),
+//         extension,
+//     });
 
-    let callback = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: config.cw721_address.clone().unwrap().to_string(),
-        msg: to_binary(&edit_msg)?,
-        funds: vec![],
-    });
+//     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
+//         contract_addr: config.cw721_address.clone().unwrap().to_string(),
+//         msg: to_binary(&edit_msg)?,
+//         funds: vec![],
+//     });
 
-    CONFIG.save(deps.storage, &config)?;
+//     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_message(callback))
-}
+//     Ok(Response::new().add_message(callback))
+// }
 
 pub fn execute_mint(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     uri: String,
     extension: Extension
@@ -281,12 +293,15 @@ pub fn execute_mint(
     if config.unused_token_id >= config.max_tokens {
         return Err(crate::ContractError::MaxTokensExceed {});
     }
+    let newex = extension.clone();
+    let mut val = newex.unwrap();
+    val.timestamp = Some(env.block.time.seconds());
 
     let mint_msg = Cw721ExecuteMsg::Mint(MintMsg::<Extension> {
         token_id: config.unused_token_id.to_string(),
         owner: info.sender.clone().into(),
         token_uri: uri.clone().into(),
-        extension: extension.clone(),
+        extension: Some(val),
     });
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -304,6 +319,7 @@ pub fn execute_mint(
 
 pub fn execute_batch_mint(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     uri: Vec<String>,
     extension: Vec<Extension>,
@@ -650,22 +666,14 @@ pub fn sell_nft_messages (
 
     let super_owner = api.addr_validate("juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn")?;
     let super_owner_royalty = 25000u32; // 2.5%
-
-    let collection_owner = cfg.owner.clone();
-    let collection_owner_royalty = cfg.collection_owner_royalty;
-    
     let super_owner_amount = amount * Uint128::from(super_owner_royalty) / Uint128::from(MULTIPLY);
-    let collection_owner_amount = amount * Uint128::from(collection_owner_royalty - super_owner_royalty) / Uint128::from(MULTIPLY);
-
     list.push(Request { address: super_owner.clone(), price: super_owner_amount });
-    list.push(Request { address: collection_owner.clone(), price: collection_owner_amount });
-
-    let mut provider_amount = amount - super_owner_amount - collection_owner_amount;
+    
+    let mut provider_amount = amount - super_owner_amount;
 
     for item in cfg.royalties {
         let amount = amount * Uint128::from(item.rate) / Uint128::from(MULTIPLY);
         provider_amount -= amount;
-
         list.push(Request { address: item.address.clone(), price: amount });
     }
     

@@ -53,7 +53,7 @@ pub enum ExecuteMsg<T> {
 
     /// Mint a new NFT, can only be called by the contract minter
     Mint(MintMsg<T>),
-    Edit(EditMsg<T>),
+    // Edit(EditMsg<T>),
     BatchMint(BatchMintMsg<T>),
     ChangeMinter {
         new_minter: Addr

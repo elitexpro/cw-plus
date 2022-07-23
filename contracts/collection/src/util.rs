@@ -72,31 +72,28 @@ pub fn execute_update_enabled (
 pub fn execute_update_royalties (
     storage: &mut dyn Storage,
     address: Addr,
-    collection_owner_royalty: u32,
+    maximum_royalty_fee: u32,
     royalties: Vec<Royalty>
 ) -> Result<Response, ContractError> {
     // authorize owner
     check_owner(storage, address)?;
 
-    let mut sum = 0u32;
-    if collection_owner_royalty < 25000u32 {
-        return Err(ContractError::MustBigger25 {});
-    }
-
+    let mut sum = 0;
     for item in royalties.clone() {
         sum += item.rate;
     }
-    if collection_owner_royalty + sum > 1000000 / 2 {
-        return Err(ContractError::TooBigRoyalties {a: collection_owner_royalty, b: sum, c: 1000000/2});
+
+    if sum > maximum_royalty_fee {
+        return Err(crate::ContractError::ExceedsMaximumRoyaltyFee {});
     }
     
     CONFIG.update(storage, |mut exists| -> StdResult<_> {
-        exists.collection_owner_royalty = collection_owner_royalty;
+        exists.maximum_royalty_fee = maximum_royalty_fee;
         exists.royalties = royalties;
         Ok(exists)
     })?;
 
-    Ok(Response::new().add_attribute("action", "update_enabled"))
+    Ok(Response::new().add_attribute("action", "update_royalties"))
 }
 
 pub fn check_token_and_pool (

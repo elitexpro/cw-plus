@@ -16,7 +16,7 @@ pub struct Config {
     pub name: String,
     pub symbol: String,
     pub unused_token_id: u32,
-    pub collection_owner_royalty: u32,
+    pub maximum_royalty_fee: u32,
     pub royalties: Vec<Royalty>,
     pub uri: String,
     pub enabled: bool

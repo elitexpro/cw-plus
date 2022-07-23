@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
     pub name: String,
     pub symbol: String,
     pub token_code_id: u64,
-    pub collection_owner_royalty: u32,
+    pub maximum_royalty_fee: u32,
     pub royalties: Vec<Royalty>,
     pub uri: String
 }
@@ -30,11 +30,11 @@ pub enum ExecuteMsg {
         enabled: bool
     },
     UpdateRoyalties {
-        collection_owner_royalty: u32,
+        maximum_royalty_fee: u32,
         royalties: Vec<Royalty>
     },
     Mint {uri: String, extension: Extension},
-    Edit {token_id: u32, uri: String, extension: Extension},
+    // Edit {token_id: u32, uri: String, extension: Extension},
     BatchMint {
         uri: Vec<String>, 
         extension:Vec<Extension>,
@@ -105,7 +105,7 @@ pub struct ConfigResponse {
     pub name: String,
     pub symbol: String,
     pub unused_token_id: u32,
-    pub collection_owner_royalty: u32,
+    pub maximum_royalty_fee: u32,
     pub royalties: Vec<Royalty>,
     pub uri: String,
     pub enabled: bool

@@ -33,6 +33,7 @@ pub struct Metadata {
     pub background_color: Option<String>,
     pub animation_url: Option<String>,
     pub youtube_url: Option<String>,
+    pub timestamp: Option<u64>
 }
 
 pub type Extension = Option<Metadata>;

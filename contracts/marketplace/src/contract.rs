@@ -120,18 +120,7 @@ pub fn execute_add_collection(
 ) -> Result<Response, ContractError> {
 
     // check_owner(&deps, &info)?;
-    let mut sum = 0u32;
-    if msg.collection_owner_royalty < 25000u32 {
-        return Err(crate::ContractError::MustBigger25 {});
-    }
-
-    for item in msg.royalties.clone() {
-        sum += item.rate;
-    }
-    if msg.collection_owner_royalty + sum > 1000000 / 2 {
-        return Err(crate::ContractError::TooBigRoyalties {a: msg.collection_owner_royalty, b: sum, c: 1000000/2});
-    }
-
+    
     let cfg = CONFIG.load(deps.storage)?;
     let record = CollectionRecord {
         owner: info.sender.clone(),
