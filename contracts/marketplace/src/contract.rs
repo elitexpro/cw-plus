@@ -193,7 +193,7 @@ pub fn execute_remove_collection(
     let record: CollectionRecord = COLLECTIONS.load(deps.storage, id)?;
     let cfg = CONFIG.load(deps.storage)?;
 
-    if record.owner != info.sender.clone() && record.owner != cfg.owner.clone() {
+    if info.sender.clone() != record.owner.clone() && info.sender.clone() != cfg.owner.clone() {
         return Err(ContractError::Unauthorized {});
     }
     COLLECTIONS.remove(deps.storage, id);

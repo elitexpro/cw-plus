@@ -49,7 +49,7 @@ pub fn instantiate(
         return Err(crate::ContractError::InvalidMaxTokens {});
     }
 
-    if !(msg.royalties.clone().len() > 0 && msg.royalties.clone()[0].address == info.sender.clone()) {
+    if msg.royalties.clone().len() == 0 || msg.royalties.first().unwrap().address != msg.owner.clone() {
         return Err(crate::ContractError::InvalidFirstRoyalty {});
     }
     let mut sum = 0;
@@ -293,15 +293,12 @@ pub fn execute_mint(
     if config.unused_token_id >= config.max_tokens {
         return Err(crate::ContractError::MaxTokensExceed {});
     }
-    let newex = extension.clone();
-    let mut val = newex.unwrap();
-    val.timestamp = Some(env.block.time.seconds());
 
     let mint_msg = Cw721ExecuteMsg::Mint(MintMsg::<Extension> {
         token_id: config.unused_token_id.to_string(),
         owner: info.sender.clone().into(),
         token_uri: uri.clone().into(),
-        extension: Some(val),
+        extension: extension.clone(),
     });
 
     let callback = CosmosMsg::Wasm(WasmMsg::Execute {

@@ -206,10 +206,26 @@ AddCollection() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
     CODE_CW721_BASE=$(cat $FILE_CODE_CW721_BASE)
 
-    junod tx wasm execute $CONTRACT_MARKETPLACE '{"add_collection":{"owner": "'$ADDR_ADMIN'", "max_tokens": 1000000, "name": "Juno the Protector", "symbol": "MNFT","token_code_id": '$CODE_CW721_BASE',
-    "cw20_address": "'$TOKEN_MARBLE'",
-    "royalty": 0,
-    "uri": "QmQWUou2j7uQ8MFXNg3exN9uaFgk4LgkDDZMCaWwWGMU3w"}}' $WALLET $TXFLAG -y
+    junod tx wasm execute $CONTRACT_MARKETPLACE '
+    {"add_collection": {
+    "owner": "'$ADDR_ADMIN'",
+    "max_tokens": 10000,
+    "name": "Airdop11",
+    "symbol": "BLOCK",
+    "token_code_id": '$CODE_CW721_BASE',
+    "maximum_royalty_fee": 100000,
+    "royalties": [
+      {
+        "address": "'$ADDR_ADMIN'",
+        "rate": 50000
+      },
+      {
+        "address": "juno1jj9la354heml9f3f73gxkxhpyzzy6gfnsq582x",
+        "rate": 10000
+      }
+    ],
+    "uri": "QmfC1brvtFZFCRJGfQDCKTNLqo1wfSjdotWuG882X4cnM9"
+  }}' $WALLET $TXFLAG -y
 
     # sleep 10
     
@@ -288,9 +304,9 @@ if [[ $FUNCTION == "" ]]; then
     RustBuild
     # CATEGORY=cw20_base
     # Upload
-    # CATEGORY=cw721_base
-    # Upload
-    # sleep 3
+    CATEGORY=cw721_base
+    Upload
+    sleep 3
     CATEGORY=marble_collection
     Upload
     sleep 3
@@ -299,12 +315,12 @@ if [[ $FUNCTION == "" ]]; then
     # sleep 3
     # InstantiateMarble
     InstantiateMarketplace
-    # sleep 3
-    # AddCollection
-    # # sleep 5
-    # # ListCollection
-    # sleep 3
-    # Mint
+    sleep 3
+    AddCollection
+    # sleep 5
+    # ListCollection
+    sleep 3
+    Mint
     # sleep 3
     
     # StartSale
