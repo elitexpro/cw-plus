@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=mainnet
+NETWORK=devnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -10,8 +10,8 @@ PARAM_2=$4
 PARAM_3=$5
 
 ADDR_ACHILLES="juno15fg4zvl8xgj3txslr56ztnyspf3jc7n9j44vhz"
-ADDR_MARBLE="juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn"
-ADDR_LOCAL="juno19380pt5d828stn7d9u4w53rz0zf55cl9xcfue0"
+ADDR_MARBLE="juno1y6j4usq3cvccquak780ht4n8xjwpr0relzdp5q"
+ADDR_LOCAL="juno16g2rahf5846rxzp3fwlswy08fz8ccuwk03k57y"
 
 case $NETWORK in
   devnet)
@@ -27,7 +27,7 @@ case $NETWORK in
     DENOM=ujunox
     CHAIN_ID=uni-3
     LP_TOKEN_CODE_ID=123
-    WALLET="--from new_marble"
+    WALLET="--from finalmarble"
     ADDR_ADMIN=$ADDR_MARBLE
     TOKEN_MARBLE="juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje"
     ;;
@@ -36,7 +36,7 @@ case $NETWORK in
     DENOM=ujuno
     CHAIN_ID=juno-1
     LP_TOKEN_CODE_ID=1
-    WALLET="--from new_marble"
+    WALLET="--from finalmarble"
     ADDR_ADMIN=$ADDR_MARBLE
     TOKEN_MARBLE="juno1g2g7ucurum66d42g8k5twk34yegdq8c82858gz0tq2fc75zy7khssgnhjl"
     TOKEN_BLOCK="juno1y9rf7ql6ffwkv02hsgd4yruz23pn4w97p75e2slsnkm0mnamhzysvqnxaq"
@@ -58,9 +58,11 @@ FILE_CODE_CW721_BASE=$INFO_DIR"code_cw721_base.txt"
 FILE_CODE_CW20_BASE=$INFO_DIR"code_cw20_base.txt"
 FILE_CODE_MARBLE_COLLECTION=$INFO_DIR"code_marble_collection.txt"
 FILE_CODE_MARBLE_MARKETPLACE=$INFO_DIR"code_marble_marketplace.txt"
+FILE_CODE_NFTSALE=$INFO_DIR"code_nftsale.txt"
 
 FILE_UPLOADHASH=$INFO_DIR"uploadtx.txt"
 FILE_MARKETPLACE_CONTRACT_ADDR=$INFO_DIR"contract_marketplace.txt"
+FILE_NFTSALE_ADDR=$INFO_DIR"contract_nftsale.txt"
 
 AIRDROP_LIST_1="airdroplist/earlylp.json"
 AIRDROP_LIST_2="airdroplist/final-daodao.json"
@@ -115,6 +117,11 @@ RustBuild() {
 
     cd ..
     cd marketplace
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd ..
+    cd nftsale
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
@@ -196,6 +203,20 @@ InstantiateMarketplace() {
     done
     echo $CONTRACT_ADDR
     echo $CONTRACT_ADDR > $FILE_MARKETPLACE_CONTRACT_ADDR
+}
+
+instantiateSale() {
+    CODE_NFTSALE=$(cat $FILE_CODE_NFTSALE)
+    TXHASH=$(junod tx wasm instantiate $CODE_NFTSALE '{"proce":"8000000", "denom":"'$DENOM'", "count":1001, "cw721_address":""}' --label "Marblenauts Sale" --admin $ADDR_ADMIN $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    echo $CONTRACT_ADDR > $FILE_NFTSALE_ADDR
 }
 
 ###################################################################################################
@@ -305,22 +326,25 @@ if [[ $FUNCTION == "" ]]; then
     # CATEGORY=cw20_base
     # Upload
     CATEGORY=cw721_base
-    Upload
+    printf "y\npassword\n" | Upload
     sleep 3
     CATEGORY=marble_collection
-    Upload
+    printf "y\npassword\n" | Upload
     sleep 3
     CATEGORY=marble_marketplace
-    Upload
+    printf "y\npassword\n" | Upload
+
+    CATEGORY=nftsale
+    printf "y\npassword\n" | Upload
     # sleep 3
     # InstantiateMarble
-    InstantiateMarketplace
-    sleep 3
-    AddCollection
+    printf "y\npassword\n" | InstantiateMarketplace
+    # sleep 3
+    # AddCollection
     # sleep 5
     # ListCollection
-    sleep 3
-    Mint
+    # sleep 3
+    # Mint
     # sleep 3
     
     # StartSale

@@ -67,7 +67,7 @@ pub fn instantiate(
         max_tokens: msg.max_tokens,
         name: msg.name.clone(),
         symbol: msg.symbol.clone(),
-        unused_token_id: 0,
+        unused_token_id: 1,
         maximum_royalty_fee: msg.maximum_royalty_fee,
         royalties: msg.royalties,
         enabled: true,
@@ -695,48 +695,6 @@ pub fn sell_nft_messages (
 
     Ok(msgs)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
