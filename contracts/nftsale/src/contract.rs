@@ -2,7 +2,7 @@ use std::ops::Index;
 
 #[cfg(not(feature = "library"))]
 use crate::ContractError;
-use crate::state::{Config, CONFIG, SALE};
+use crate::state::{Config, CONFIG, TOKENS};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, Api,
@@ -39,19 +39,16 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let mut unsold_list:Vec<String> = vec![];
-    for i in 0..msg.count {
-        unsold_list.push((i + 1).to_string());
-    }
+    
 
     let config = Config {
         owner: info.sender.clone(),
         price: msg.price,
-        count: msg.count,
         denom: msg.denom,
-        sold_count: 0u32,
+        total_count: 0u32,
+        sold_index: 0u32,
         cw721_address: msg.cw721_address,
         enabled: true,
-        unsold_list_str: unsold_list.concat()
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -63,7 +60,7 @@ pub fn instantiate(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetSoldState {token_id} => to_binary(&query_get_sold_state(deps, token_id)?),
+        QueryMsg::GetToken {index} => to_binary(&query_get_token(deps, index)?),
     }
 }
 
@@ -72,21 +69,20 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         owner: config.owner,
         price: config.price,
-        count: config.count,
-        sold_count: config.sold_count,
+        total_count: config.total_count,
+        sold_index: config.sold_index,
         cw721_address: config.cw721_address,
         enabled: config.enabled,
         denom: config.denom,
-        unsold_list_str: config.unsold_list_str
     })
 }
 
-fn query_get_sold_state(
+fn query_get_token(
     deps: Deps,
-    token_id: String,
-) -> StdResult<bool> {
-    let sale_info = SALE.has(deps.storage, token_id);
-    Ok(sale_info)
+    index: u32
+) -> StdResult<String> {
+    let token_id = TOKENS.load(deps.storage, index).unwrap();
+    Ok(token_id)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -99,10 +95,30 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => util::execute_update_owner(deps.storage, info.sender, owner),
         ExecuteMsg::UpdateEnabled { enabled } => util::execute_update_enabled(deps.storage, info.sender, enabled),
+        ExecuteMsg::SetToken {token_id} => execute_set_token(deps, token_id),
         ExecuteMsg::Buy { } => execute_buy(deps, env, info),
-        ExecuteMsg::Send { token_id, address } => execute_send(deps, env, info, token_id, address),
+        ExecuteMsg::Withdraw { index } => execute_withdraw(deps, env, info, index),
+        ExecuteMsg::WithdrawId { token_id } => execute_withdraw_id(deps, env, info, token_id),
     }
 }
+
+pub fn execute_set_token(
+    deps: DepsMut,
+    token_id: String
+) -> Result<Response, crate::ContractError> {
+    util::check_enabled(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    
+    TOKENS.save(deps.storage, config.total_count, &token_id)?;
+    config.total_count += 1;
+    CONFIG.save(deps.storage, &config)?;
+    
+    Ok(Response::new()
+        .add_attribute("action", "set_token")
+        .add_attribute("token_id", token_id.to_string())
+    )
+}
+
 
 pub fn execute_buy(
     deps: DepsMut,
@@ -111,23 +127,20 @@ pub fn execute_buy(
 ) -> Result<Response, crate::ContractError> {
     util::check_enabled(deps.storage)?;
     let mut config = CONFIG.load(deps.storage)?;
-
     
-    if config.sold_count == config.count {
+    if config.total_count == config.sold_index + 1 {
         return Err(ContractError::AlreadyFinished {  })
     }
-
-    let mut unsold_list:Vec<&str> = config.unsold_list_str.split(",").collect();
-    config.sold_count -= 1;
-
     let amount = util::get_amount_of_denom(Balance::from(info.funds), Denom::Native(config.denom.clone()))?;
     if amount < config.price {
         return Err(ContractError::InsufficientFund {  })
     }
 
-    let index = env.block.time.seconds() % unsold_list.len() as u64;
-    let token_id = String::from(unsold_list[index as usize]);
-    
+    config.sold_index += 1;
+    CONFIG.save(deps.storage, &config)?;
+
+    let token_id = TOKENS.load(deps.storage, config.sold_index)?;
+
     let mut messages:Vec<CosmosMsg> = vec![];
     messages.push(util::transfer_token_message(Denom::Native(config.denom.clone()), amount, config.owner.clone())?);
 
@@ -140,12 +153,6 @@ pub fn execute_buy(
         funds: vec![],
     }));
 
-    unsold_list.remove(index as usize);
-    config.unsold_list_str = unsold_list.concat();
-    
-    CONFIG.save(deps.storage, &config)?;
-    SALE.save(deps.storage, token_id.clone(), &info.sender.clone())?;
-
     Ok(Response::new()
         .add_messages(messages)
         .add_attribute("action", "buy")
@@ -155,48 +162,60 @@ pub fn execute_buy(
 }
 
 
-pub fn execute_send(
+pub fn execute_withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    token_id: String,
-    address: Addr
+    index: u32
 ) -> Result<Response, crate::ContractError> {
 
     util::check_owner(deps.storage, info.sender.clone())?;
-    let mut config = CONFIG.load(deps.storage)?;
-    if config.sold_count == config.count {
-        return Err(ContractError::AlreadyFinished {  })
-    }
-
-    let mut unsold_list:Vec<&str> = config.unsold_list_str.split(",").collect();
-    config.sold_count -= 1;
-
-    // let payment = unsold_list
-    //     .iter()
-    //     .find(|x| x == token_id.as_str());
-    let index = unsold_list.iter().find(|x| x == &&token_id.as_str()).ok_or_else(|| ContractError::AlreadySold {  })?;
-    unsold_list.remove(index as usize);
-    config.unsold_list_str = unsold_list.concat();
+    let token_id = TOKENS.load(deps.storage, index)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let mut messages:Vec<CosmosMsg> = vec![];
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.cw721_address.clone().to_string(),
         msg: to_binary(&Cw721ExecuteMsg::<Extension>::TransferNft {
             token_id: token_id.clone(),
-            recipient: address.clone().into()
+            recipient: config.owner.clone().into()
         })?,
         funds: vec![],
     }));
 
-    CONFIG.save(deps.storage, &config)?;
-    SALE.save(deps.storage, token_id.clone(), &address.clone())?;
 
     Ok(Response::new()
         .add_messages(messages)
-        .add_attribute("action", "send")
+        .add_attribute("action", "withdraw")
         .add_attribute("token_id", token_id)
-        .add_attribute("address", address.clone())
+    )
+}
+
+
+pub fn execute_withdraw_id(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: String
+) -> Result<Response, crate::ContractError> {
+
+    util::check_owner(deps.storage, info.sender.clone())?;
+    let config = CONFIG.load(deps.storage)?;
+
+    let mut messages:Vec<CosmosMsg> = vec![];
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.cw721_address.clone().to_string(),
+        msg: to_binary(&Cw721ExecuteMsg::<Extension>::TransferNft {
+            token_id: token_id.clone(),
+            recipient: config.owner.clone().into()
+        })?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "withdraw_id")
+        .add_attribute("token_id", token_id)
     )
 }
 

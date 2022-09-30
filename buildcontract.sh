@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=devnet
+NETWORK=mainnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -106,21 +106,21 @@ RustBuild() {
     
     cd contracts
     
-    cd cw721-base
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd cw721-base
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd ..
-    cd collection
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd ..
+    # cd collection
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd ..
-    cd marketplace
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd ..
+    # cd marketplace
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd ..
+    # cd ..
     cd nftsale
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
@@ -205,9 +205,9 @@ InstantiateMarketplace() {
     echo $CONTRACT_ADDR > $FILE_MARKETPLACE_CONTRACT_ADDR
 }
 
-instantiateSale() {
+InstantiateSale() {
     CODE_NFTSALE=$(cat $FILE_CODE_NFTSALE)
-    TXHASH=$(junod tx wasm instantiate $CODE_NFTSALE '{"proce":"8000000", "denom":"'$DENOM'", "count":1001, "cw721_address":""}' --label "Marblenauts Sale" --admin $ADDR_ADMIN $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    TXHASH=$(junod tx wasm instantiate $CODE_NFTSALE '{"price":"8000000", "denom":"'$DENOM'", "cw721_address":"juno13r2x5e6uefwl4weu29kfr746ege68cffleaeex47q7jfmm282q9sq2cpdn"}' --label "MarblenautsSale$CODE_NFTSALE" --admin $ADDR_ADMIN $WALLET $TXFLAG -y --output json | jq -r '.txhash')
     echo $TXHASH
     CONTRACT_ADDR=""
     while [[ $CONTRACT_ADDR == "" ]]
@@ -322,23 +322,23 @@ PrintWalletBalance() {
 
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
-    RustBuild
+    # RustBuild
     # CATEGORY=cw20_base
     # Upload
-    CATEGORY=cw721_base
-    printf "y\npassword\n" | Upload
-    sleep 3
-    CATEGORY=marble_collection
-    printf "y\npassword\n" | Upload
-    sleep 3
-    CATEGORY=marble_marketplace
-    printf "y\npassword\n" | Upload
+    # CATEGORY=cw721_base
+    # printf "y\npassword\n" | Upload
+    # sleep 3
+    # CATEGORY=marble_collection
+    # printf "y\npassword\n" | Upload
+    # sleep 3
+    # CATEGORY=marble_marketplace
+    # printf "y\npassword\n" | Upload
 
     CATEGORY=nftsale
     printf "y\npassword\n" | Upload
     # sleep 3
     # InstantiateMarble
-    printf "y\npassword\n" | InstantiateMarketplace
+    # printf "y\npassword\n" | InstantiateMarketplace
     # sleep 3
     # AddCollection
     # sleep 5
