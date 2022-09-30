@@ -1,0 +1,3 @@
+#!/bin/sh
+docker stop -t 0 juno_node_1
+docker rm juno_node_1
