@@ -50,19 +50,18 @@ TXFLAG=" $NODECHAIN --gas-prices 0.001$DENOM --gas auto --gas-adjustment 1.3"
 RELEASE_DIR="release/"
 
 INFO_DIR="$NETWORK/"
-CW721WASMFILE=$RELEASE_DIR"cw721_base.wasm"
-COLLECTIONWASMFILE=$RELEASE_DIR"marble_collection.wasm"
-MARKETPLACEWASMFILE=$RELEASE_DIR"marble_marketplace.wasm"
 
 FILE_CODE_CW721_BASE=$INFO_DIR"code_cw721_base.txt"
 FILE_CODE_CW20_BASE=$INFO_DIR"code_cw20_base.txt"
 FILE_CODE_MARBLE_COLLECTION=$INFO_DIR"code_marble_collection.txt"
 FILE_CODE_MARBLE_MARKETPLACE=$INFO_DIR"code_marble_marketplace.txt"
 FILE_CODE_NFTSALE=$INFO_DIR"code_nftsale.txt"
+FILE_CODE_NFTSTAKING=$INFO_DIR"code_nftstaking.txt"
 
 FILE_UPLOADHASH=$INFO_DIR"uploadtx.txt"
 FILE_MARKETPLACE_CONTRACT_ADDR=$INFO_DIR"contract_marketplace.txt"
 FILE_NFTSALE_ADDR=$INFO_DIR"contract_nftsale.txt"
+FILE_NFTSTAKING_ADDR=$INFO_DIR"contract_nftstaking.txt"
 
 AIRDROP_LIST_1="airdroplist/earlylp.json"
 AIRDROP_LIST_2="airdroplist/final-daodao.json"
@@ -121,7 +120,11 @@ RustBuild() {
     # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
     # cd ..
-    cd nftsale
+    # cd nftsale
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd nftstaking
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
@@ -219,6 +222,20 @@ InstantiateSale() {
     echo $CONTRACT_ADDR > $FILE_NFTSALE_ADDR
 }
 
+InstantiateStaking() {
+    CODE_NFTSTAKING=$(cat $FILE_CODE_NFTSTAKING)
+    TXHASH=$(junod tx wasm instantiate $CODE_NFTSTAKING '{"collection_address":"juno16hjg4c5saxqqa3cwfx7aw9vzapqna7fn2xprttge888lw0zlw5us87nv8x", "cw20_address":"juno1y9rf7ql6ffwkv02hsgd4yruz23pn4w97p75e2slsnkm0mnamhzysvqnxaq", "daily_reward":"10000", "interval":60}' --label "MarblenautsStaking$CODE_NFTSTAKING" --admin $ADDR_ADMIN $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    echo $CONTRACT_ADDR > $FILE_NFTSTAKING_ADDR
+}
+
 ###################################################################################################
 ###################################################################################################
 ###################################################################################################
@@ -278,16 +295,17 @@ Mint() {
 }
 StartSale() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
-    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
-    CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.cw721_address')
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.cw721_address')
 
     # MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Time":[300, 400]}, "initial_price":"100"}}'
-    MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Bid":5}, "initial_price":"100"}}'
+    MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Bid":5}, "initial_price":"10000000000", "reserve_price":"10000000000", "denom":{"native":"ujuno"}}}'
+    #MSG='{"start_sale": {"sale_type": "Fixed", "duration_type": "Fixed", "initial_price":"100000", "reserve_price":"100000", "denom":{"native":"ujuno"}}}'
     ENCODEDMSG=$(echo $MSG | base64 -w 0)
     echo $ENCODEDMSG
     # sleep 3
 # 
-    junod tx wasm execute $CONTRACT_CW721 '{"send_nft": {"contract": "'$CONTRACT_COLLECTION'", "token_id":"4", "msg": "'$ENCODEDMSG'"}}' $WALLET $TXFLAG -y
+    junod tx wasm execute $CONTRACT_CW721 '{"send_nft": {"contract": "'$CONTRACT_COLLECTION'", "token_id":"439", "msg": "'$ENCODEDMSG'"}}' $WALLET $TXFLAG -y
 
 }
 
@@ -322,7 +340,7 @@ PrintWalletBalance() {
 
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
-    # RustBuild
+    RustBuild
     # CATEGORY=cw20_base
     # Upload
     # CATEGORY=cw721_base
@@ -334,8 +352,13 @@ if [[ $FUNCTION == "" ]]; then
     # CATEGORY=marble_marketplace
     # printf "y\npassword\n" | Upload
 
-    CATEGORY=nftsale
+    # CATEGORY=nftsale
+    # printf "y\npassword\n" | Upload
+
+    CATEGORY=nftstaking
     printf "y\npassword\n" | Upload
+    sleep 3
+    InstantiateStaking
     # sleep 3
     # InstantiateMarble
     # printf "y\npassword\n" | InstantiateMarketplace
