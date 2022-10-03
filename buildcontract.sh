@@ -309,6 +309,21 @@ StartSale() {
 
 }
 
+StartStaking() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.cw721_address')
+    echo $CONTRACT_CW721
+    # MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Time":[300, 400]}, "initial_price":"100"}}'
+    MSG='{"stake": {}}'
+    #MSG='{"start_sale": {"sale_type": "Fixed", "duration_type": "Fixed", "initial_price":"100000", "reserve_price":"100000", "denom":{"native":"ujuno"}}}'
+    ENCODEDMSG=$(echo $MSG | base64 -w 0)
+    echo $ENCODEDMSG
+    # sleep 3
+    junod tx wasm execute $CONTRACT_CW721 '{"send_nft": {"contract": "'$CONTRACT_COLLECTION'", "token_id":"439", "msg": "'$ENCODEDMSG'"}}' $WALLET $TXFLAG -y
+
+}
+
 PrintSale() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
     CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
