@@ -110,6 +110,15 @@ pub enum ContractError {
     #[error("Insufficient Cw20")]
     InsufficientCw20 {},
 
+    #[error("StillInLock")]
+    StillInLock {},
+
+    #[error("CreateUnstakeFirst")]
+    CreateUnstakeFirst {},
+
+    #[error("NoReward")]
+    NoReward {},
+
     #[error("AlreadySold")]
     AlreadySold {},
 

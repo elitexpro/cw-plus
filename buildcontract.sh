@@ -299,13 +299,22 @@ StartSale() {
     CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.cw721_address')
 
     # MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Time":[300, 400]}, "initial_price":"100"}}'
-    MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Bid":5}, "initial_price":"10000000000", "reserve_price":"10000000000", "denom":{"native":"ujuno"}}}'
+    MSG='{"start_sale": {"sale_type": "Auction", "duration_type": {"Bid":5}, "initial_price":"10000", "reserve_price":"10000", "denom":{"native":"ujuno"}}}'
     #MSG='{"start_sale": {"sale_type": "Fixed", "duration_type": "Fixed", "initial_price":"100000", "reserve_price":"100000", "denom":{"native":"ujuno"}}}'
     ENCODEDMSG=$(echo $MSG | base64 -w 0)
     echo $ENCODEDMSG
     # sleep 3
 # 
     junod tx wasm execute $CONTRACT_CW721 '{"send_nft": {"contract": "'$CONTRACT_COLLECTION'", "token_id":"439", "msg": "'$ENCODEDMSG'"}}' $WALLET $TXFLAG -y
+
+}
+
+CancelSale() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    CONTRACT_CW721=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.-+.cw721_address')
+
+    junod tx wasm execute $CONTRACT_COLLECTION '{"cancel_sale": {"token_id": 439}}' $WALLET $TXFLAG -y
 
 }
 
@@ -335,11 +344,26 @@ PrintSale() {
 
 Propose() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
-    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.collection_address')
 
     # junod tx wasm execute $CONTRACT_COLLECTION '{"mint": {"uri": "dddd"}}' $WALLET $TXFLAG -y
-    junod tx wasm execute $CONTRACT_COLLECTION '{"propose":{"token_id":4, "price":"800"}}' $WALLET $TXFLAG -y
+    junod tx wasm execute $CONTRACT_COLLECTION '{"propose":{"token_id":439, "denom":"ujuno"}}' --amount 20000ujuno $WALLET $TXFLAG -y
 }
+
+Propose2() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":3}}' $NODECHAIN --output json | jq -r '.data.collection_address')
+
+    CONTRACT_BLOCK="juno1y9rf7ql6ffwkv02hsgd4yruz23pn4w97p75e2slsnkm0mnamhzysvqnxaq"
+    MSG='{"propose":{"token_id":1}}'
+    #MSG='{"start_sale": {"sale_type": "Fixed", "duration_type": "Fixed", "initial_price":"100000", "reserve_price":"100000", "denom":{"native":"ujuno"}}}'
+    ENCODEDMSG=$(echo $MSG | base64 -w 0)
+
+    # junod tx wasm execute $CONTRACT_COLLECTION '{"mint": {"uri": "dddd"}}' $WALLET $TXFLAG -y
+    junod tx wasm execute $CONTRACT_BLOCK '{"send":{"contract":"'$CONTRACT_COLLECTION'", "amount":"11000000000", "msg":"'$ENCODEDMSG'"}}' $WALLET $TXFLAG -y
+}
+
+
 Test() {
     junod query wasm list-contract-by-code 365 $NODECHAIN --output json
 }
@@ -352,7 +376,11 @@ PrintWalletBalance() {
     junod query bank balances $ADDR_ADMIN $NODECHAIN
     echo "========================================="
 }
-
+ListCodes() {
+    echo "========================================="
+    junod query wasm list-contract-by-code 1143 $NODECHAIN
+    echo "========================================="
+}
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
     RustBuild

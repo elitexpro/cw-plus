@@ -13,7 +13,8 @@ pub struct InstantiateMsg {
     pub collection_address: Addr,
     pub cw20_address: Addr,
     pub daily_reward: Uint128,
-    pub interval: u64
+    pub interval: u64,
+    pub lock_time: u64
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,12 +29,15 @@ pub enum ExecuteMsg {
     UpdateConfig {
         cw20_address: Addr,
         daily_reward: Uint128,
-        interval: u64
+        interval: u64,
+        lock_time: u64
     },
     ReceiveNft(Cw721ReceiveMsg),
     Claim {
     },
-    Unstake {
+    CreateUnstake {
+    },
+    FetchUnstake {
     },
     WithdrawId {
         token_id: String
@@ -63,6 +67,7 @@ pub struct ConfigResponse {
     pub cw20_address: Addr,
     pub daily_reward: Uint128,
     pub interval: u64,
+    pub lock_time: u64,
     pub enabled: bool
 }
 
@@ -73,6 +78,7 @@ pub struct StakingInfo {
     pub claimed_amount: Uint128,
     pub unclaimed_amount: Uint128,
     pub claimed_timestamp: u64,
+    pub create_unstake_timestamp: u64,
     pub last_timestamp: u64
 }
 

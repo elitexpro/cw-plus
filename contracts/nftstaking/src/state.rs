@@ -15,6 +15,7 @@ pub struct Config {
     pub cw20_address: Addr,
     pub daily_reward: Uint128,
     pub interval: u64,
+    pub lock_time: u64,
     pub enabled: bool
 }
 

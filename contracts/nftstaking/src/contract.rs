@@ -35,7 +35,6 @@ const CONTRACT_NAME: &str = "nftstaking";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
-const INTERVAL:u64 = 60; // 86400
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -53,6 +52,7 @@ pub fn instantiate(
         cw20_address: msg.cw20_address.clone(),
         daily_reward: msg.daily_reward.clone(),
         interval: msg.interval,
+        lock_time: msg.lock_time,
         enabled: true
     };
 
@@ -71,10 +71,11 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => util::execute_update_owner(deps.storage, info.sender, owner),
         ExecuteMsg::UpdateEnabled { enabled } => util::execute_update_enabled(deps.storage, info.sender, enabled),
-        ExecuteMsg::UpdateConfig { cw20_address, daily_reward, interval } => execute_update_config(deps.storage, info.sender, cw20_address, daily_reward, interval),
+        ExecuteMsg::UpdateConfig { cw20_address, daily_reward, interval, lock_time } => execute_update_config(deps.storage, info.sender, cw20_address, daily_reward, interval, lock_time),
         ExecuteMsg::ReceiveNft(msg) => execute_receive_nft(deps, env, info, msg),
         ExecuteMsg::Claim { } => execute_claim(deps, env, info),
-        ExecuteMsg::Unstake { } => execute_unstake(deps, env, info),
+        ExecuteMsg::CreateUnstake { } => execute_create_unstake(deps, env, info),
+        ExecuteMsg::FetchUnstake { } => execute_fetch_unstake(deps, env, info),
         ExecuteMsg::WithdrawId { token_id } => execute_withdraw_id(deps, env, info, token_id),
     }
 }
@@ -84,7 +85,8 @@ pub fn execute_update_config (
     address: Addr,
     cw20_address: Addr,
     daily_reward: Uint128,
-    interval: u64
+    interval: u64,
+    lock_time: u64
 ) -> Result<Response, ContractError> {
     // authorize owner
     util::check_owner(storage, address)?;
@@ -93,6 +95,7 @@ pub fn execute_update_config (
         exists.cw20_address = cw20_address;
         exists.daily_reward = daily_reward;
         exists.interval = interval;
+        exists.lock_time = lock_time;
         Ok(exists)
     })?;
 
@@ -107,10 +110,13 @@ fn update_unclaimed_amount(
     
     let cfg = CONFIG.load(storage)?;
     let mut record = STAKING.load(storage, address.clone())?;
-    record.unclaimed_amount += Uint128::from((env.block.time.seconds() / cfg.interval - record.last_timestamp / cfg.interval) * (record.token_ids.len() as u64)) * cfg.daily_reward;
-    record.last_timestamp = env.block.time.seconds();
+    if record.create_unstake_timestamp == 0u64 {
+        record.unclaimed_amount += Uint128::from((env.block.time.seconds() / cfg.interval - record.last_timestamp / cfg.interval) * (record.token_ids.len() as u64)) * cfg.daily_reward;
+        record.last_timestamp = env.block.time.seconds();
 
-    STAKING.save(storage, address.clone(), &record);
+        STAKING.save(storage, address.clone(), &record)?;
+    }
+    
     Ok(Response::new())
 }
 
@@ -146,6 +152,7 @@ pub fn execute_receive_nft(
                 claimed_amount: Uint128::zero(),
                 unclaimed_amount: Uint128::zero(),
                 claimed_timestamp: env.block.time.seconds(),
+                create_unstake_timestamp: 0u64,
                 last_timestamp: env.block.time.seconds()
             };
 
@@ -183,6 +190,10 @@ pub fn execute_claim(
 
     let mut staking_info = STAKING.load(deps.storage, info.sender.clone())?;
 
+    if staking_info.unclaimed_amount == Uint128::zero() {
+        return Err(crate::ContractError::NoReward {  });
+    }
+
     if util::get_token_amount(deps.querier, Denom::Cw20(cfg.cw20_address.clone()), env.clone().contract.address.clone())? < staking_info.unclaimed_amount {
         return Err(crate::ContractError::InsufficientCw20 {  });
     }
@@ -205,7 +216,29 @@ pub fn execute_claim(
     )
 }
 
-pub fn execute_unstake(
+pub fn execute_create_unstake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, crate::ContractError> {
+
+    util::check_enabled(deps.storage)?;
+    let cfg = CONFIG.load(deps.storage)?;
+    update_unclaimed_amount(deps.storage, env.clone(), info.sender.clone())?;
+
+    let mut staking_info = STAKING.load(deps.storage, info.sender.clone())?;
+    staking_info.create_unstake_timestamp = env.block.time.seconds();
+    
+    STAKING.save(deps.storage, info.sender.clone(), &staking_info)?;
+
+
+    Ok(Response::new()
+        .add_attribute("action", "create_unstake")
+    )
+}
+
+
+pub fn execute_fetch_unstake(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -217,21 +250,30 @@ pub fn execute_unstake(
 
     let mut staking_info = STAKING.load(deps.storage, info.sender.clone())?;
 
+    if staking_info.create_unstake_timestamp == 0u64 {
+        return Err(ContractError::CreateUnstakeFirst {});
+    }
+
+    if env.block.time.seconds() < cfg.lock_time + staking_info.create_unstake_timestamp {
+        return Err(ContractError::StillInLock{});
+    }
+
     let collection_response: CollectionConfigResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
         contract_addr: cfg.collection_address.clone().into(),
         msg: to_binary(&CollectionQueryMsg::GetConfig {})?,
     }))?;
     let cw721_address = collection_response.cw721_address.unwrap();
 
-    if util::get_token_amount(deps.querier, Denom::Cw20(cfg.cw20_address.clone()), env.clone().contract.address.clone())? < staking_info.unclaimed_amount {
-        return Err(crate::ContractError::InsufficientCw20 {  });
+    let mut msgs:Vec<CosmosMsg> = vec![];
+    if staking_info.unclaimed_amount > Uint128::zero() {
+        if util::get_token_amount(deps.querier, Denom::Cw20(cfg.cw20_address.clone()), env.clone().contract.address.clone())? < staking_info.unclaimed_amount {
+            return Err(crate::ContractError::InsufficientCw20 {  });
+        }
+        msgs.push(util::transfer_token_message(Denom::Cw20(cfg.cw20_address.clone()), staking_info.unclaimed_amount, info.sender.clone())?);
     }
-
-    let reward_msg = util::transfer_token_message(Denom::Cw20(cfg.cw20_address.clone()), staking_info.unclaimed_amount, info.sender.clone())?;
-    let amount = staking_info.unclaimed_amount;
-    let mut nft_msgs: Vec<CosmosMsg> = vec![];
+    
     for token_id in staking_info.token_ids.clone() {
-        nft_msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        msgs.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cw721_address.clone().to_string(),
             msg: to_binary(&Cw721ExecuteMsg::<Extension>::TransferNft {
                 token_id,
@@ -245,8 +287,7 @@ pub fn execute_unstake(
 
 
     Ok(Response::new()
-        .add_message(reward_msg)
-        .add_messages(nft_msgs)
+        .add_messages(msgs)
         .add_attribute("action", "unstake")
     )
 }
@@ -303,6 +344,7 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         cw20_address: config.cw20_address,
         daily_reward: config.daily_reward,
         interval: config.interval,
+        lock_time: config.lock_time,
         enabled: config.enabled
     })
 }
@@ -316,7 +358,9 @@ fn query_get_staking(
     let mut staking_info = STAKING.load(deps.storage, address.clone())?;
     let cfg = CONFIG.load(deps.storage)?;
 
-    staking_info.unclaimed_amount += Uint128::from((env.block.time.seconds() / cfg.interval - staking_info.last_timestamp / cfg.interval) * (staking_info.token_ids.len() as u64)) * cfg.daily_reward;
+    if staking_info.create_unstake_timestamp == 0u64 {
+        staking_info.unclaimed_amount += Uint128::from((env.block.time.seconds() / cfg.interval - staking_info.last_timestamp / cfg.interval) * (staking_info.token_ids.len() as u64)) * cfg.daily_reward;    
+    }
 
     Ok(staking_info)
 }
