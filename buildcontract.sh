@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=mainnet
+NETWORK=testnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -12,7 +12,7 @@ PARAM_3=$5
 ADDR_ACHILLES="juno15fg4zvl8xgj3txslr56ztnyspf3jc7n9j44vhz"
 ADDR_MARBLE="juno1y6j4usq3cvccquak780ht4n8xjwpr0relzdp5q"
 ADDR_LOCAL="juno16g2rahf5846rxzp3fwlswy08fz8ccuwk03k57y"
-
+ADDR_BLOCK_TEST="juno190k40ya33qy3ssynwhlxcllgwlzk9j9gldc32p6y5c5scy4qhkdqxf3ene"
 case $NETWORK in
   devnet)
     NODE="http://localhost:26657"
@@ -25,7 +25,7 @@ case $NETWORK in
   testnet)
     NODE="https://rpc.juno.giansalex.dev:443"
     DENOM=ujunox
-    CHAIN_ID=uni-3
+    CHAIN_ID=uni-5
     LP_TOKEN_CODE_ID=123
     WALLET="--from finalmarble"
     ADDR_ADMIN=$ADDR_MARBLE
@@ -44,7 +44,7 @@ case $NETWORK in
 esac
 
 NODECHAIN=" --node $NODE --chain-id $CHAIN_ID"
-TXFLAG=" $NODECHAIN --gas-prices 0.001$DENOM --gas auto --gas-adjustment 1.3"
+TXFLAG=" $NODECHAIN --gas-prices 0.01$DENOM --gas auto --gas-adjustment 1.3"
 
 
 RELEASE_DIR="release/"
@@ -105,28 +105,32 @@ RustBuild() {
     
     cd contracts
     
-    # cd cw721-base
-    # RUSTFLAGS='-C link-arg=-s' cargo wasm
-    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    cd cw20-base
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    # cd ..
-    # cd collection
-    # RUSTFLAGS='-C link-arg=-s' cargo wasm
-    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    cd cw721-base
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    # cd ..
-    # cd marketplace
-    # RUSTFLAGS='-C link-arg=-s' cargo wasm
-    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    cd ..
+    cd collection
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+
+    cd ..
+    cd marketplace
+    RUSTFLAGS='-C link-arg=-s' cargo wasm
+    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
     # cd ..
     # cd nftsale
     # RUSTFLAGS='-C link-arg=-s' cargo wasm
     # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd nftstaking
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd nftstaking
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
     cd ../../
 }
@@ -152,24 +156,55 @@ Upload() {
     echo $CODE_ID > $INFO_DIR"code_"$CATEGORY".txt"
 }
 # {"name":"STKN","symbol":"STKN","decimals":6,"initial_balances":[],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/prism.png"}}}
-# InstantiateMarble() { 
-#     echo "================================================="
-#     echo "Instantiate Marble Contract"
-#     CODE_CW20_BASE=$(cat $FILE_CODE_CW20_BASE)
+InstantiateMarble() { 
+    echo "================================================="
+    echo "Instantiate Marble Contract"
+    CODE_CW20_BASE=$(cat $FILE_CODE_CW20_BASE)
 
-#     echo "CW20-base Code ID: "$CODE_CW20_BASE
+    echo "CW20-base Code ID: "$CODE_CW20_BASE
     
-#     TXHASH=$(junod tx wasm instantiate $CODE_CW20_BASE '{"name":"MARBLE","symbol":"MARBLE","decimals":3,"initial_balances":[],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/marble.png"}}}' --admin $ADDR_ADMIN --label "Marble" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
-#     echo $TXHASH
-#     CONTRACT_ADDR=""
-#     while [[ $CONTRACT_ADDR == "" ]]
-#     do
-#         sleep 3
-#         CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
-#     done
-#     echo $CONTRACT_ADDR
-#     echo $CONTRACT_ADDR > $FILE_MARBLE_CONTRACT_ADDR
-# }
+    TXHASH=$(junod tx wasm instantiate $CODE_CW20_BASE '{"name":"BLOCK","symbol":"BLOCK","decimals":6,"initial_balances":[{"address":"'$ADDR_ADMIN'","amount":"1000000000000000"}],"mint":{"minter":"'$ADDR_ADMIN'"},"marketing":{"marketing":"'$ADDR_ADMIN'","logo":{"url":"https://i.ibb.co/RTRwxfs/marble.png"}}}' --admin $ADDR_ADMIN --label "Marble" $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    echo $CONTRACT_ADDR > $FILE_MARBLE_CONTRACT_ADDR
+}
+
+
+InstantiateTest() { 
+    echo "================================================="
+    CODE=793
+    
+    # Instantiate param in cosmwasm.tools
+    # {
+    #   "add_collection": {
+    #     "owner": "juno1zzru8wptsc23z2lw9rvw4dq606p8fz0z6k6ggn",
+    #     "max_tokens": 10000,
+    #     "name": "Collection1",
+    #     "symbol": "MNFT",
+    #     "token_code_id": 360,
+    #     "cw20_address": "juno15s50e6k9s8mac9cmrg2uq85cgw7fxxfh24xhr0chems2rjxsfjjs8kmuje",
+    #     "royalty": 0,
+    #     "uri": "ddd"
+    #   }
+    # }
+
+    TXHASH=$(junod tx wasm instantiate $CODE '{"max_tokens":1000, "unit_price":"1000","name":"test","symbol":"TEST","token_uri":"", "extension":{}}' --label "TEST" --admin $ADDR_ADMIN $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    CONTRACT_ADDR=""
+    while [[ $CONTRACT_ADDR == "" ]]
+    do
+        sleep 3
+        CONTRACT_ADDR=$(junod query tx $TXHASH $NODECHAIN --output json | jq -r '.logs[0].events[0].attributes[0].value')
+    done
+    echo $CONTRACT_ADDR
+    
+}
 
 InstantiateMarketplace() { 
     echo "================================================="
@@ -384,24 +419,24 @@ ListCodes() {
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
     RustBuild
-    # CATEGORY=cw20_base
-    # Upload
-    # CATEGORY=cw721_base
-    # printf "y\npassword\n" | Upload
-    # sleep 3
-    # CATEGORY=marble_collection
-    # printf "y\npassword\n" | Upload
-    # sleep 3
-    # CATEGORY=marble_marketplace
-    # printf "y\npassword\n" | Upload
+    CATEGORY=cw20_base
+    printf "y\npassword\n" | Upload
+    CATEGORY=cw721_base
+    printf "y\npassword\n" | Upload
+    sleep 3
+    CATEGORY=marble_collection
+    printf "y\npassword\n" | Upload
+    sleep 3
+    CATEGORY=marble_marketplace
+    printf "y\npassword\n" | Upload
 
     # CATEGORY=nftsale
     # printf "y\npassword\n" | Upload
 
-    CATEGORY=nftstaking
-    printf "y\npassword\n" | Upload
-    sleep 3
-    InstantiateStaking
+    # CATEGORY=nftstaking
+    # printf "y\npassword\n" | Upload
+    # sleep 3
+    # InstantiateStaking
     # sleep 3
     # InstantiateMarble
     # printf "y\npassword\n" | InstantiateMarketplace
