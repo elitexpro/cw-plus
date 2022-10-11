@@ -661,12 +661,7 @@ pub fn sell_nft_messages (
     let cfg = CONFIG.load(storage)?;
     let mut list:Vec<Request> = vec![];
 
-    let super_owner = api.addr_validate("juno1y6j4usq3cvccquak780ht4n8xjwpr0relzdp5q")?;
-    let super_owner_royalty = 25000u32; // 2.5%
-    let super_owner_amount = amount * Uint128::from(super_owner_royalty) / Uint128::from(MULTIPLY);
-    list.push(Request { address: super_owner.clone(), price: super_owner_amount });
-    
-    let mut provider_amount = amount - super_owner_amount;
+    let mut provider_amount = amount;
 
     for item in cfg.royalties {
         let amount = amount * Uint128::from(item.rate) / Uint128::from(MULTIPLY);
