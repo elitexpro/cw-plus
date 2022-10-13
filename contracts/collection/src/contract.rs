@@ -203,9 +203,6 @@ pub fn execute(
         ExecuteMsg::CancelSale { token_id } => {
             execute_cancel_sale(deps, info, token_id)
         },
-        // ExecuteMsg::Edit{ token_id, uri, extension } => {
-        //     execute_edit(deps, info, token_id, uri, extension)
-        // },
         ExecuteMsg::Mint{ uri, extension } => {
             execute_mint(deps, env, info, uri, extension)
         },
@@ -225,56 +222,20 @@ pub fn execute(
         } => execute_change_cw721_owner(deps, info, owner),
         ExecuteMsg::UpdateUnusedTokenId {
             token_id
-        } => execute_update_unused_token_id(deps, info, token_id)
+        } => execute_update_unused_token_id(deps, info, token_id),
+        ExecuteMsg::EditSale {
+            token_id,
+            sale_type,
+            duration_type,
+            initial_price,
+            reserve_price,
+            denom
+        } => execute_edit_sale(deps, info, token_id, sale_type, duration_type, initial_price, reserve_price, denom),
+        ExecuteMsg::CancelPropose { token_id } => execute_cancel_propose(deps, info, token_id)
+
     }
 }
 
-
-// pub fn execute_edit(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     token_id: u32,
-//     uri: String,
-//     extension: Extension
-// ) -> Result<Response, crate::ContractError> {
-//     util::check_enabled(deps.storage)?;
-//     let config = CONFIG.load(deps.storage)?;
-    
-//     if config.cw721_address == None {
-//         return Err(crate::ContractError::Uninitialized {});
-//     }
-
-//     if SALE.has(deps.storage, token_id.to_string()) {
-//         return Err(crate::ContractError::CannotEditOnSale {});
-//     }
-//     let owner_of: OwnerOfResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-//         contract_addr: config.cw721_address.clone().unwrap().to_string(),
-//         msg: to_binary(&Cw721QueryMsg::OwnerOf {
-//             token_id: token_id.to_string(),
-//             include_expired: Some(true)
-//         })?,
-//     }))?;
-
-//     if info.sender.clone().to_string() != owner_of.owner {
-//         return Err(crate::ContractError::Unauthorized {});
-//     }
-
-//     let edit_msg = Cw721ExecuteMsg::Edit(EditMsg::<Extension> {
-//         token_id: token_id.to_string(),
-//         token_uri: Some(uri),
-//         extension,
-//     });
-
-//     let callback = CosmosMsg::Wasm(WasmMsg::Execute {
-//         contract_addr: config.cw721_address.clone().unwrap().to_string(),
-//         msg: to_binary(&edit_msg)?,
-//         funds: vec![],
-//     });
-
-//     CONFIG.save(deps.storage, &config)?;
-
-//     Ok(Response::new().add_message(callback))
-// }
 
 pub fn execute_mint(
     deps: DepsMut,
@@ -610,13 +571,20 @@ pub fn handle_propose(
             return Err(crate::ContractError::LowerThanPrevious {})
         }
     }
-
+    // let mut lastitem = Request {
+    //     address: address.clone(),
+    //     price: Uint128::zero()
+    // };
+    // if list.len() > 0 {
+    //     let len = list.len();
+    //     lastitem = list[len - 1].clone();
+    // }
     list.push(Request {
         address: address.clone(),
         price
     });
     
-    sale_info.requests = list;
+    sale_info.requests = list.clone();
 
     if sale_info.sale_type == SaleType::Auction && price >= sale_info.reserve_price {
         sale_info.can_accept = true;
@@ -640,7 +608,13 @@ pub fn handle_propose(
         );
 
     } else {
+        let mut msgs:Vec<CosmosMsg> = vec![];
+        // if list.len() > 1 {
+        //     msgs.push(util::transfer_token_message(sale_info.denom.clone(), lastitem.price, lastitem.address.clone())?);
+        // }
+        
         Ok(Response::new()
+            .add_messages(msgs)
             .add_attribute("action", "propose")
             .add_attribute("address", address.clone())
             .add_attribute("token_id", token_id.to_string())
@@ -691,6 +665,72 @@ pub fn sell_nft_messages (
     Ok(msgs)
 }
 
+
+pub fn execute_edit_sale(
+    deps: DepsMut,
+    info: MessageInfo,
+    token_id: u32,
+    sale_type: SaleType,
+    duration_type: DurationType,
+    initial_price: Uint128,
+    reserve_price: Uint128,
+    denom: Denom 
+) -> Result<Response, crate::ContractError> {
+
+    let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
+    if sale_info.provider != info.sender.clone() {
+        return Err(crate::ContractError::Unauthorized {  });
+    }
+
+    if sale_info.requests.len() > 0 {
+        return Err(crate::ContractError::AlreadyOnSale {  });
+    }
+
+    sale_info.sale_type = sale_type;
+    sale_info.duration_type = duration_type;
+    sale_info.initial_price = initial_price;
+    sale_info.reserve_price = reserve_price;
+
+    SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
+    Ok(Response::new()
+        .add_attribute("action", "edit_sale")
+        .add_attribute("token_id", token_id.to_string()))
+}
+
+
+pub fn execute_cancel_propose(
+    deps: DepsMut,
+    info: MessageInfo,
+    token_id: u32,
+) -> Result<Response, crate::ContractError> {
+
+    let mut sale_info = SALE.load(deps.storage, token_id.to_string())?;
+    let list = sale_info.requests.clone();
+    let mut new_list: Vec<Request> = vec![];
+    let mut cancel_price = Uint128::zero();
+
+    for i in 0.. list.len() {
+        if list[i].address == info.sender.clone() {
+            cancel_price = list[i].price;
+            continue;
+        }
+        new_list.push(list[i].clone());
+    }
+    
+    sale_info.requests = new_list;
+
+    SALE.save(deps.storage, token_id.to_string(), &sale_info)?;
+
+    let mut msgs: Vec<CosmosMsg> = vec![];
+    msgs.push(util::transfer_token_message(sale_info.denom.clone(), cancel_price, info.sender.clone())?);
+
+    Ok(Response::new()
+        .add_attribute("action", "cancel_propose")
+        .add_attribute("token_id", token_id.to_string())
+        .add_attribute("address", info.sender.clone().to_string())
+        .add_messages(msgs)
+    )
+}
 
 
 pub fn execute_change_contract(

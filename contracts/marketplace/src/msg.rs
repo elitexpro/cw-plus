@@ -32,7 +32,11 @@ pub enum ExecuteMsg {
 
     },
     AddCollection(CollectionInstantiateMsg),
-    EditCollection(CollectionInfo)
+    EditCollection(CollectionInfo),
+    EditUri {
+        id: u32,
+        uri: String
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

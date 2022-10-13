@@ -2,7 +2,7 @@
 
 #Build Flag
 
-NETWORK=testnet
+NETWORK=mainnet
 FUNCTION=$1
 CATEGORY=$2
 PARAM_1=$3
@@ -105,15 +105,15 @@ RustBuild() {
     
     cd contracts
     
-    cd cw20-base
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd cw20-base
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd cw721-base
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd cw721-base
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd ..
+    # cd ..
     cd collection
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
@@ -416,17 +416,59 @@ ListCodes() {
     junod query wasm list-contract-by-code 1143 $NODECHAIN
     echo "========================================="
 }
+
+Migrate() { 
+    echo "================================================="
+    echo "Migrate Contract"
+    # juno1ker9z45q0zwryaupzruk5xg39su8tpv33u6ds6hlwpz3q5n28yvsp7e3uc
+    # juno1ddyj0ycfmac3gn33hrpcayq7ver55l6hkgyuwwyfuxtfqx9nr9lsuujszj
+    # juno16hjg4c5saxqqa3cwfx7aw9vzapqna7fn2xprttge888lw0zlw5us87nv8x
+    # juno1ttk30ura2p79l7tu7n2ayltl8sfr2pzkmn52a7hnrrzf5w8tvewqlqkqq0
+    # juno1pzv6qtmx8ud8hqm66g6vufxqshey9tcukwff6hx9m9c6nrhwl2zskxejga
+    # juno1zhj6rz5fns0zryjdz4a2jlaan9ks7982kclucxn6qwd8u0n50lnsn2acld
+    # juno1cxtq9w9sctnanzykphd2ac009k4fe2z43rv9lq5thde3tc2x3a0q764484
+
+    # CONTRACT_ADDR=juno1hjmxtgc4dkmk3qvj2al0ct8c2z4f9envujs70yh7ngeu7rml804sgwkt84
+    # echo $CONTRACT_ADDR
+    
+    
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1ker9z45q0zwryaupzruk5xg39su8tpv33u6ds6hlwpz3q5n28yvsp7e3uc 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1ddyj0ycfmac3gn33hrpcayq7ver55l6hkgyuwwyfuxtfqx9nr9lsuujszj 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno16hjg4c5saxqqa3cwfx7aw9vzapqna7fn2xprttge888lw0zlw5us87nv8x 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1ttk30ura2p79l7tu7n2ayltl8sfr2pzkmn52a7hnrrzf5w8tvewqlqkqq0 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1pzv6qtmx8ud8hqm66g6vufxqshey9tcukwff6hx9m9c6nrhwl2zskxejga 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1zhj6rz5fns0zryjdz4a2jlaan9ks7982kclucxn6qwd8u0n50lnsn2acld 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+    # sleep 30
+    # TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1cxtq9w9sctnanzykphd2ac009k4fe2z43rv9lq5thde3tc2x3a0q764484 1207 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    # echo $TXHASH
+
+    TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate juno1jxpkymvmvlp2lem650dx2tvqkpqd3js50j94hj8d8hjf2lu3wwyqvp39ja 1209 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    
+    
+}
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then
-    RustBuild
-    CATEGORY=cw20_base
-    printf "y\npassword\n" | Upload
-    CATEGORY=cw721_base
-    printf "y\npassword\n" | Upload
-    sleep 3
-    CATEGORY=marble_collection
-    printf "y\npassword\n" | Upload
-    sleep 3
+    # RustBuild
+    # CATEGORY=cw20_base
+    # printf "y\npassword\n" | Upload
+    # CATEGORY=cw721_base
+    # printf "y\npassword\n" | Upload
+    # sleep 3
+    # CATEGORY=marble_collection
+    # printf "y\npassword\n" | Upload
+    # sleep 3
     CATEGORY=marble_marketplace
     printf "y\npassword\n" | Upload
 

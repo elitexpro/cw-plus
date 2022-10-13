@@ -61,7 +61,8 @@ pub fn execute(
         ExecuteMsg::RemoveCollection {id} => execute_remove_collection(deps, info, id),
         ExecuteMsg::RemoveAllCollection {  } => execute_remove_all_collection(deps, info),
         ExecuteMsg::AddCollection(msg) => execute_add_collection(deps, info, msg),
-        ExecuteMsg::EditCollection(msg) => execute_edit_collection(deps, info, msg)
+        ExecuteMsg::EditCollection(msg) => execute_edit_collection(deps, info, msg),
+        ExecuteMsg::EditUri{id, uri} => execute_edit_uri(deps, info, id, uri)
     }
 }
 
@@ -243,6 +244,26 @@ pub fn execute_edit_collection(
     COLLECTIONS.save(deps.storage, msg.id, &record)?;
     
     Ok(Response::new().add_attribute("action", "edit_collection").add_attribute("id", msg.id.to_string()))
+}
+
+
+
+pub fn execute_edit_uri(
+    deps: DepsMut,
+    info: MessageInfo,
+    id: u32,
+    uri: String
+) -> Result<Response, ContractError> {
+
+    
+    let mut record: CollectionRecord = COLLECTIONS.load(deps.storage, id)?;
+    if record.owner != info.sender.clone() {
+        return Err(ContractError::Unauthorized {  });
+    }
+    record.uri = uri.clone();
+    COLLECTIONS.save(deps.storage, id, &record)?;
+    
+    Ok(Response::new().add_attribute("action", "edit_uri").add_attribute("id", id.to_string()).add_attribute("uri", uri))
 }
 
 

@@ -60,6 +60,17 @@ pub enum ExecuteMsg {
     },
     UpdateUnusedTokenId {
         token_id: u32
+    },
+    EditSale {
+        token_id: u32,
+        sale_type: SaleType,
+        duration_type: DurationType,
+        initial_price: Uint128,
+        reserve_price: Uint128,
+        denom: Denom
+    },
+    CancelPropose {
+        token_id: u32
     }
 }
 
