@@ -114,11 +114,11 @@ RustBuild() {
     # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
     # cd ..
-    cd collection
-    RUSTFLAGS='-C link-arg=-s' cargo wasm
-    cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
+    # cd collection
+    # RUSTFLAGS='-C link-arg=-s' cargo wasm
+    # cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
 
-    cd ..
+    # cd ..
     cd marketplace
     RUSTFLAGS='-C link-arg=-s' cargo wasm
     cp target/wasm32-unknown-unknown/release/*.wasm ../../release/
@@ -148,7 +148,7 @@ Upload() {
     while [[ $CODE_ID == "" ]]
     do 
         sleep 3
-        CODE_ID=$(junod query tx $UPLOADTX $NODECHAIN --output json | jq -r '.logs[0].events[-1].attributes[0].value')
+        CODE_ID=$(junod query tx $UPLOADTX $NODECHAIN --output json | jq -r '.logs[0].events[-1].attributes[-1].value')
     done
     echo "Contract Code_id:"$CODE_ID
 
@@ -321,6 +321,47 @@ ListCollection() {
     echo $TXHASH
 }
 
+ListCollections() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    # junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"list_collections":{}}' $NODECHAIN
+    junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"list_collections":{}}' $NODECHAIN 
+}
+
+RemoveCollections() {
+    CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 7}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 8}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 9}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 10}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 11}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 12}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 13}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 14}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 15}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 16}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 17}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 18}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 19}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 20}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 21}}' $WALLET $TXFLAG -y
+    sleep 30
+    printf "y\npassword\n" | junod tx wasm execute $CONTRACT_MARKETPLACE '{"remove_collection":{"id": 22}}' $WALLET $TXFLAG -y
+}
+
 Mint() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
     CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":1}}' $NODECHAIN --output json | jq -r '.data.collection_address')
@@ -328,6 +369,7 @@ Mint() {
 
     junod tx wasm execute $CONTRACT_COLLECTION '{"mint": {"uri": "dddd"}}' $WALLET $TXFLAG -y
 }
+
 StartSale() {
     CONTRACT_MARKETPLACE=$(cat $FILE_MARKETPLACE_CONTRACT_ADDR)
     CONTRACT_COLLECTION=$(junod query wasm contract-state smart $CONTRACT_MARKETPLACE '{"collection":{"id":5}}' $NODECHAIN --output json | jq -r '.data.collection_address')
@@ -457,6 +499,30 @@ Migrate() {
     echo $TXHASH
     
     
+}
+
+
+MigrateMarketplace() { 
+    echo "================================================="
+    echo "MigrateSale Contract"
+    # juno1jxpkymvmvlp2lem650dx2tvqkpqd3js50j94hj8d8hjf2lu3wwyqvp39ja
+    
+    CONTRACT_ADDR=juno1jxpkymvmvlp2lem650dx2tvqkpqd3js50j94hj8d8hjf2lu3wwyqvp39ja
+    echo $CONTRACT_ADDR
+    
+    
+    TXHASH=$(printf "y\npassword\n" | junod tx wasm migrate $CONTRACT_ADDR 1479 '{}' $WALLET $TXFLAG -y --output json | jq -r '.txhash')
+    echo $TXHASH
+    
+    
+    
+}
+
+ListCodes() {
+    echo "========================================="
+    junod query wasm list-contract-by-code 1448 $NODECHAIN
+    junod query wasm code-info 1448 $NODECHAIN
+    echo "========================================="
 }
 #################################### End of Function ###################################################
 if [[ $FUNCTION == "" ]]; then

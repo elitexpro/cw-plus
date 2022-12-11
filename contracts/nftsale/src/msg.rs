@@ -24,6 +24,9 @@ pub enum ExecuteMsg {
     UpdateEnabled {
         enabled: bool
     },
+    UpdatePrice {
+        price: Uint128
+    },
     SetToken {
         token_id: String
     },

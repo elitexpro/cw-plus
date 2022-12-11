@@ -95,6 +95,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::UpdateOwner { owner } => util::execute_update_owner(deps.storage, info.sender, owner),
         ExecuteMsg::UpdateEnabled { enabled } => util::execute_update_enabled(deps.storage, info.sender, enabled),
+        ExecuteMsg::UpdatePrice { price } => util::execute_update_price(deps.storage, info.sender, price),
         ExecuteMsg::SetToken {token_id} => execute_set_token(deps, token_id),
         ExecuteMsg::Buy { } => execute_buy(deps, env, info),
         ExecuteMsg::Withdraw { index } => execute_withdraw(deps, env, info, index),

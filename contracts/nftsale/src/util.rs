@@ -68,6 +68,22 @@ pub fn execute_update_enabled (
     Ok(Response::new().add_attribute("action", "update_enabled"))
 }
 
+pub fn execute_update_price (
+    storage: &mut dyn Storage,
+    address: Addr,
+    price: Uint128
+) -> Result<Response, ContractError> {
+    // authorize owner
+    check_owner(storage, address)?;
+    
+    CONFIG.update(storage, |mut exists| -> StdResult<_> {
+        exists.price = price;
+        Ok(exists)
+    })?;
+
+    Ok(Response::new().add_attribute("action", "update_price"))
+}
+
 pub fn get_amount_of_denom(
     balance: Balance,
     denom: Denom

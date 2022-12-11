@@ -267,8 +267,8 @@ pub fn execute_edit_uri(
 }
 
 
-const MAX_LIMIT: u32 = 30;
-const DEFAULT_LIMIT: u32 = 20;
+const MAX_LIMIT: u32 = 1000;
+const DEFAULT_LIMIT: u32 = 1000;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
